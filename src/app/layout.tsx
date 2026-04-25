@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { ThemeProvider } from "next-themes";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -25,11 +26,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={cn(playfair.variable, sourceSerif.variable)}>
+    <html lang="en" className={cn(playfair.variable, sourceSerif.variable)} suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </ThemeProvider>
       </body>
     </html>
   );

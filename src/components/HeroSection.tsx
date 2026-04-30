@@ -14,14 +14,11 @@ export default function HeroSection() {
       </h1>
       <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-8">
         A reading journal that grows with you. Reflect chapter by chapter,
-        track your streak, and share your journey — without spoilers.
+        track your streak, and share your journey.
       </p>
       <div className="flex gap-3 justify-center">
         <Button size="lg">
           <Link href="/register">Start journaling</Link>
-        </Button>
-        <Button size="lg" variant="outline">
-          <Link href="/dashboard">See demo</Link>
         </Button>
       </div>
     </section>

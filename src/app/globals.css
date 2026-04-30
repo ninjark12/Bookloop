@@ -40,9 +40,9 @@
 }
 
 :root {
-  --background: ##FAF7F2;
+  --background: #F5F0E8;
   --foreground: #2C1810;
-  --card: ##F5F0E8;
+  --card: #EDE8DC;
   --card-foreground: #2C1810;
   --popover: #EDE8DC;
   --popover-foreground: #2C1810;
@@ -67,12 +67,14 @@
   --sidebar-accent-foreground: #2C1810;
   --sidebar-border: #D4C9B5;
   --sidebar-ring: #6B4C2A;
+  --tally-paper: #E0D8C8;
+  --tally-stroke: #6B4C2A;
 }
 
 .dark {
   --background: #1C1917;
   --foreground: #F5F0E8;
-  --card: #242018;
+  --card: #292522;
   --card-foreground: #F5F0E8;
   --popover: #292522;
   --popover-foreground: #F5F0E8;
@@ -85,7 +87,7 @@
   --accent: #6B9E61;
   --accent-foreground: #1C1917;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: #4A4035;;
+  --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: #C4956A;
   --sidebar: #292522;
@@ -96,9 +98,9 @@
   --sidebar-accent-foreground: #F5F0E8;
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: #C4956A;
-}
-
-@layer base {
+  --tally-paper: #3D3530;
+  --tally-stroke: #C4956A;
+}@layer base {
   * {
     @apply border-border outline-ring/50;
   }

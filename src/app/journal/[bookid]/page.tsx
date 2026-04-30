@@ -1,15 +1,61 @@
-export default function JournalBookPage({ params }: { params: { bookId: string } }) {
+import { auth } from "@/lib/auth"
+import { headers } from "next/headers"
+import { redirect, notFound } from "next/navigation"
+import { db } from "@/db"
+import { journalEntries, books, readingProgress } from "@/db/schema"
+import { eq, and, desc } from "drizzle-orm"
+import JournalPageClient from "@/components/JournalPageClient"
+
+export default async function JournalPage({
+  params,
+}: {
+  params: Promise<{ bookId: string }>
+}) {
+  const { bookId } = await params
+
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) redirect("/login")
+
+  const [book] = await db
+    .select()
+    .from(books)
+    .where(eq(books.id, bookId))
+    .limit(1)
+
+  if (!book) notFound()
+
+  const [entries, progress] = await Promise.all([
+    db
+      .select()
+      .from(journalEntries)
+      .where(
+        and(
+          eq(journalEntries.bookId, bookId),
+          eq(journalEntries.userId, session.user.id)
+        )
+      )
+      .orderBy(desc(journalEntries.createdAt)),
+
+    db
+      .select()
+      .from(readingProgress)
+      .where(
+        and(
+          eq(readingProgress.userId, session.user.id),
+          eq(readingProgress.bookId, bookId)
+        )
+      )
+      .limit(1)
+      .then(rows => rows[0] ?? null),
+  ])
+
   return (
-    <div className="max-w-6xl mx-auto px-6 py-12">
-      <h1
-        className="text-3xl font-bold text-primary mb-2"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        Journal
-      </h1>
-      <p className="text-muted-foreground">
-        Entries for book: <span className="text-foreground font-medium">{params.bookId}</span>
-      </p>
-    </div>
-  );
+    <JournalPageClient
+      book={book}
+      initialEntries={entries}
+      progress={progress}
+      userId={session.user.id}
+    />
+  )
 }
+

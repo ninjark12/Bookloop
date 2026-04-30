@@ -3,38 +3,48 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useRouter } from "next/navigation";
-import { Plus, BookOpen } from "lucide-react";
+import { Plus, BookOpen, X } from "lucide-react";
 
-const STREAK = 7;
 const TALLY_THRESHOLD = 15;
 const ANIMATION_KEY = "bookloop_tally_seen";
 const LEFT_PAGE_MAX = 4;
+
+type Status = "READING" | "READ" | "TBR" | "DNF";
 
 type Book = {
   id: string;
   title: string;
   author: string;
-  chapter: number;
-  status: "READING" | "READ" | "TBR";
+  coverUrl: string | null;
+  status: Status;
+  furthestChapter: number | null;
 };
 
-const mockBooks: Book[] = [
-  { id: "dune", title: "Dune", author: "Frank Herbert", chapter: 12, status: "READING" },
-  { id: "notw", title: "The Name of the Wind", author: "Patrick Rothfuss", chapter: 42, status: "READING" },
-  { id: "educated", title: "Educated", author: "Tara Westover", chapter: 30, status: "READ" },
-  { id: "piranesi", title: "Piranesi", author: "Susanna Clarke", chapter: 1, status: "TBR" },
-];
-
-const statusColor: Record<Book["status"], string> = {
-  READING: "#4A6741",
-  READ: "#6B4C2A",
-  TBR: "#8C7B6B",
+type Props = {
+  books: Book[];
+  streak: number;
 };
 
-const statusBg: Record<Book["status"], string> = {
-  READING: "rgba(74,103,65,0.15)",
-  READ: "rgba(107,76,42,0.15)",
-  TBR: "rgba(140,123,107,0.12)",
+const STATUS_LABELS: Record<Status, string> = {
+  READING: "Reading",
+  READ: "Read",
+  TBR: "To be read",
+  DNF: "Did not finish",
+};
+
+const statusColor: Record<Status, string> = {
+  READING: "var(--accent)",
+  READ: "var(--primary)",
+  TBR: "var(--muted-foreground)",
+  DNF: "var(--muted-foreground)",
+};
+
+// Semi-transparent tint derived from CSS vars -- no hardcoded hex
+const statusBgClass: Record<Status, string> = {
+  READING: "color-mix(in srgb, var(--accent) 15%, transparent)",
+  READ: "color-mix(in srgb, var(--primary) 15%, transparent)",
+  TBR: "color-mix(in srgb, var(--muted-foreground) 12%, transparent)",
+  DNF: "color-mix(in srgb, var(--muted-foreground) 12%, transparent)",
 };
 
 function getTallyDuration(index: number): number {
@@ -58,47 +68,185 @@ function splitBooks(books: Book[]) {
   };
 }
 
-function BookCardItem({ book, onClick }: { book: Book; onClick: () => void }) {
+// -- Status modal --
+type StatusModalProps = {
+  book: Book;
+  onClose: () => void;
+  onSelect: (bookId: string, status: Status) => void;
+};
+
+function StatusModal({ book, onClose, onSelect }: StatusModalProps) {
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    // Backdrop
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Change status for ${book.title}`}
+      style={{
+        position: "fixed", inset: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.4)",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: "var(--card)",
+        border: "0.5px solid var(--border)",
+        borderRadius: "var(--radius)",
+        padding: "1.5rem",
+        minWidth: "260px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+          <div>
+            <p style={{
+              fontFamily: "var(--font-display)", fontSize: "14px",
+              fontWeight: 600, color: "var(--foreground)", margin: 0,
+            }}>
+              {book.title}
+            </p>
+            <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: "2px 0 0" }}>
+              Change reading status
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close status modal"
+            onClick={onClose}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "26px", height: "26px",
+              border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+              background: "var(--muted)", color: "var(--muted-foreground)",
+              cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Status options */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {(Object.keys(STATUS_LABELS) as Status[]).map((s) => {
+            const active = book.status === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={active}
+                onClick={() => { onSelect(book.id, s); onClose(); }}
+                style={{
+                  width: "100%", textAlign: "left",
+                  padding: "8px 12px",
+                  border: `0.5px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                  borderRadius: "var(--radius)",
+                  background: active
+                    ? "color-mix(in srgb, var(--primary) 10%, var(--card))"
+                    : "var(--background)",
+                  color: active ? "var(--primary)" : "var(--foreground)",
+                  cursor: "pointer", fontSize: "13px", fontFamily: "inherit",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}
+              >
+                <span>{STATUS_LABELS[s]}</span>
+                {active && (
+                  <span style={{
+                    fontSize: "9px", fontWeight: 600, letterSpacing: "0.06em",
+                    color: "var(--primary)",
+                    background: "color-mix(in srgb, var(--primary) 12%, transparent)",
+                    borderRadius: "3px", padding: "1px 5px",
+                  }}>
+                    current
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookCardItem({
+  book,
+  onNavigate,
+  onStatusClick,
+}: {
+  book: Book;
+  onNavigate: () => void;
+  onStatusClick: (e: React.MouseEvent) => void;
+}) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
         background: "var(--background)",
         border: `0.5px solid ${hovered ? "var(--primary)" : "var(--border)"}`,
         borderRadius: "var(--radius)",
         padding: "1rem",
-        cursor: "pointer",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
         transition: "border-color 0.2s, transform 0.2s",
+        position: "relative",
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
+      {/* Colour bar -- not interactive */}
       <div style={{
         width: "100%", height: "4px", borderRadius: "2px",
         background: statusColor[book.status], marginBottom: "12px",
       }} />
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-        <p style={{
-          fontFamily: "var(--font-display)", fontSize: "14px", fontWeight: 600,
-          color: "var(--foreground)", lineHeight: 1.3, flex: 1, marginRight: "8px",
-        }}>
+        {/* Title -- navigates to journal */}
+        <button
+          type="button"
+          aria-label={`Open journal for ${book.title}`}
+          onClick={onNavigate}
+          style={{
+            background: "none", border: "none", padding: 0, cursor: "pointer",
+            fontFamily: "var(--font-display)", fontSize: "14px", fontWeight: 600,
+            color: "var(--foreground)", lineHeight: 1.3,
+            flex: 1, marginRight: "8px", textAlign: "left",
+          }}
+        >
           {book.title}
-        </p>
-        <span style={{
-          fontSize: "9px", fontWeight: 500, letterSpacing: "0.06em",
-          color: statusColor[book.status], background: statusBg[book.status],
-          borderRadius: "4px", padding: "2px 6px", whiteSpace: "nowrap",
-        }}>
+        </button>
+
+        {/* Status badge -- opens modal */}
+        <button
+          type="button"
+          aria-label={`Status: ${STATUS_LABELS[book.status]}. Click to change.`}
+          onClick={onStatusClick}
+          style={{
+            fontSize: "9px", fontWeight: 500, letterSpacing: "0.06em",
+            color: statusColor[book.status],
+            background: statusBgClass[book.status],
+            borderRadius: "4px", padding: "2px 6px",
+            border: "none", cursor: "pointer",
+            whiteSpace: "nowrap", flexShrink: 0,
+          }}
+        >
           {book.status}
-        </span>
+        </button>
       </div>
+
       <p style={{ fontSize: "11px", color: "var(--muted-foreground)", marginBottom: "8px" }}>
         {book.author}
       </p>
       <p style={{ fontSize: "11px", color: "var(--muted-foreground)" }}>
-        {book.status === "TBR" ? "Not started" : `Up to chapter ${book.chapter}`}
+        {book.status === "TBR" || !book.furthestChapter
+          ? "Not started"
+          : `Up to chapter ${book.furthestChapter}`}
       </p>
     </div>
   );
@@ -107,16 +255,18 @@ function BookCardItem({ book, onClick }: { book: Book; onClick: () => void }) {
 function AddBookCard({ onClick }: { onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      aria-label="Add a book"
       style={{
+        width: "100%", fontFamily: "inherit",
         background: "var(--background)",
         border: `0.5px dashed ${hovered ? "var(--primary)" : "var(--border)"}`,
         borderRadius: "var(--radius)",
         padding: "1rem",
-        cursor: "pointer",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
         minHeight: "120px", gap: "8px",
@@ -129,16 +279,15 @@ function AddBookCard({ onClick }: { onClick: () => void }) {
         background: "var(--muted)", display: "flex",
         alignItems: "center", justifyContent: "center",
       }}>
-        <Plus size={16} style={{ color: "var(--muted-foreground)" }} />
+        <Plus size={16} style={{ color: "var(--muted-foreground)" }} aria-hidden="true" />
       </div>
       <p style={{ fontSize: "11px", color: "var(--muted-foreground)", textAlign: "center" }}>
         Add a book
       </p>
-    </div>
+    </button>
   );
 }
 
-// Tally SVG drawn inline — used in the open state band
 function TallyBand({ streak, tallyRefs }: {
   streak: number;
   tallyRefs: React.MutableRefObject<SVGLineElement[]>;
@@ -148,25 +297,29 @@ function TallyBand({ streak, tallyRefs }: {
   let idx = 0;
 
   return (
-    <div style={{
-      width: "100%",
-      background: "#E8E0D0",
-      borderBottom: "0.5px solid #C4A882",
-      padding: "10px 3rem",
-      display: "flex",
-      alignItems: "center",
-      gap: "4px",
-      flexShrink: 0,
-    }}>
-      <span style={{
-        fontSize: "9px", letterSpacing: "0.14em",
-        color: "#8C7B6B", textTransform: "uppercase",
-        marginRight: "12px", whiteSpace: "nowrap",
-      }}>
+    <div
+      style={{
+        width: "100%",
+        background: "var(--tally-paper)",
+        borderBottom: "0.5px solid var(--border)",
+        padding: "10px 3rem",
+        display: "flex", alignItems: "center", gap: "4px",
+        flexShrink: 0,
+      }}
+      aria-label={`Reading streak: ${streak} day${streak !== 1 ? "s" : ""}`}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          fontSize: "9px", letterSpacing: "0.14em",
+          color: "var(--muted-foreground)", textTransform: "uppercase",
+          marginRight: "12px", whiteSpace: "nowrap",
+        }}
+      >
         Reading streak
       </span>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }} aria-hidden="true">
         {groups.map((count, gi) => {
           const groupTallies: number[] = [];
           for (let i = 0; i < count; i++) groupTallies.push(idx++);
@@ -183,7 +336,7 @@ function TallyBand({ streak, tallyRefs }: {
                     key={i}
                     ref={(el) => { if (el) tallyRefs.current[ti] = el; }}
                     x1="4" y1="48" x2="48" y2="4"
-                    stroke="#6B4C2A" strokeWidth="2.5" strokeLinecap="round"
+                    stroke="var(--tally-stroke)" strokeWidth="2.5" strokeLinecap="round"
                   />
                 ) : (
                   <line
@@ -191,7 +344,7 @@ function TallyBand({ streak, tallyRefs }: {
                     ref={(el) => { if (el) tallyRefs.current[ti] = el; }}
                     x1={8 + i * 11} y1="4"
                     x2={8 + i * 11} y2="48"
-                    stroke="#6B4C2A" strokeWidth="2.5" strokeLinecap="round"
+                    stroke="var(--tally-stroke)" strokeWidth="2.5" strokeLinecap="round"
                   />
                 );
               })}
@@ -202,9 +355,9 @@ function TallyBand({ streak, tallyRefs }: {
         {showCount && (
           <span style={{
             fontSize: "15px", fontWeight: 500,
-            color: "#6B4C2A", fontFamily: "var(--font-display)",
+            color: "var(--tally-stroke)", fontFamily: "var(--font-display)",
           }}>
-            ×{streak}
+            x{streak}
           </span>
         )}
       </div>
@@ -212,15 +365,16 @@ function TallyBand({ streak, tallyRefs }: {
   );
 }
 
-export default function DashboardClient() {
+export default function DashboardClient({ books: initialBooks, streak }: Props) {
   const router = useRouter();
+  const [books, setBooks] = useState<Book[]>(initialBooks);
+  const [statusModal, setStatusModal] = useState<Book | null>(null);
 
-  // closed = notebook shown, open = book spread shown
   const [isOpen, setIsOpen] = useState(false);
   const [booksVisible, setBooksVisible] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
-  const notebookRef = useRef<HTMLDivElement>(null);
+  const notebookRef = useRef<HTMLButtonElement>(null);
   const bookSpreadRef = useRef<HTMLDivElement>(null);
   const tallyRefs = useRef<SVGLineElement[]>([]);
 
@@ -229,9 +383,24 @@ export default function DashboardClient() {
     setReducedMotion(mq.matches);
   }, []);
 
+  // -- Status change (optimistic) --
+  async function handleStatusSelect(bookId: string, status: Status) {
+    const prev = books;
+    setBooks(b => b.map(bk => bk.id === bookId ? { ...bk, status } : bk));
+    try {
+      const res = await fetch("/api/books/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId, status }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setBooks(prev); // revert on failure
+    }
+  }
+
   function handleNotebookClick() {
     if (isOpen) return;
-
     const alreadySeen = localStorage.getItem(ANIMATION_KEY);
     const skip = reducedMotion || alreadySeen === "true";
 
@@ -242,35 +411,18 @@ export default function DashboardClient() {
     }
 
     localStorage.setItem(ANIMATION_KEY, "true");
-
     const tl = gsap.timeline({
-      onComplete: () => {
-        setIsOpen(true);
-        setBooksVisible(true);
-      },
+      onComplete: () => { setIsOpen(true); setBooksVisible(true); },
     });
-
-    // Notebook pulses then zooms out to reveal book
-    tl.to(notebookRef.current, {
-      scale: 1.04, rotation: 0, duration: 0.2, ease: "power1.out",
-    });
-    tl.to(notebookRef.current, {
-      scale: 10, opacity: 0, duration: 0.55, ease: "power3.in",
-    });
-
-    // Book spread fades in behind
-    tl.to(bookSpreadRef.current, {
-      opacity: 1, duration: 0.35, ease: "power2.out",
-    }, "-=0.15");
+    tl.to(notebookRef.current, { scale: 1.04, rotation: 0, duration: 0.2, ease: "power1.out" });
+    tl.to(notebookRef.current, { scale: 10, opacity: 0, duration: 0.55, ease: "power3.in" });
+    tl.to(bookSpreadRef.current, { opacity: 1, duration: 0.35, ease: "power2.out" }, "-=0.15");
   }
 
-  // After open state mounts, animate tally strokes
   useEffect(() => {
     if (!isOpen || reducedMotion) return;
-
     const tallies = tallyRefs.current.filter(Boolean);
     const tl = gsap.timeline();
-
     tallies.forEach((line, i) => {
       gsap.set(line, { strokeDasharray: 52, strokeDashoffset: 52 });
       tl.to(line, {
@@ -281,15 +433,23 @@ export default function DashboardClient() {
     });
   }, [isOpen, reducedMotion]);
 
-  const { left: leftBooks, right: rightBooks } = splitBooks(mockBooks);
+  const { left: leftBooks, right: rightBooks } = splitBooks(books);
 
   return (
     <div style={{ position: "relative", width: "100%", minHeight: "100vh", overflow: "hidden" }}>
 
-      {/* ── CLOSED STATE — notebook only, no tallies ── */}
+      {/* Status modal */}
+      {statusModal && (
+        <StatusModal
+          book={statusModal}
+          onClose={() => setStatusModal(null)}
+          onSelect={handleStatusSelect}
+        />
+      )}
+
+      {/* -- CLOSED STATE -- */}
       {!isOpen && (
         <>
-          {/* Invisible target for zoom animation to fade into */}
           <div
             ref={bookSpreadRef}
             style={{
@@ -309,29 +469,28 @@ export default function DashboardClient() {
               width: "min(520px, 75vw)",
               height: "min(760px, 78vh)",
             }}>
-              {/* Notebook */}
-              <div
+              <button
+                type="button"
                 ref={notebookRef}
                 onClick={handleNotebookClick}
+                aria-label="Open your reading journal"
                 style={{
-                  position: "absolute",
-                  inset: 0,
+                  position: "absolute", inset: 0,
                   background: "var(--card)",
                   border: "0.5px solid var(--border)",
                   borderRadius: "6px 20px 20px 6px",
-                  cursor: "pointer",
                   transform: "rotate(-3deg)",
-                  display: "flex",
-                  flexDirection: "column",
+                  display: "flex", flexDirection: "column",
                   overflow: "hidden",
                   transition: "box-shadow 0.2s",
+                  width: "100%", fontFamily: "inherit",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.boxShadow =
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow =
                     "0 16px 56px rgba(107,76,42,0.2)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
                 }}
               >
                 {/* Binding */}
@@ -365,7 +524,7 @@ export default function DashboardClient() {
                     gap: "clamp(8px, 1.5vw, 14px)",
                     marginBottom: "clamp(6px, 1.5vh, 14px)",
                   }}>
-                    <BookOpen size={22} style={{ color: "var(--primary)", flexShrink: 0 }} />
+                    <BookOpen size={22} style={{ color: "var(--primary)", flexShrink: 0 }} aria-hidden="true" />
                     <span style={{
                       fontSize: "clamp(16px, 2.5vw, 26px)",
                       fontWeight: 700, color: "var(--primary)",
@@ -383,7 +542,6 @@ export default function DashboardClient() {
                     Reading journal
                   </p>
 
-                  {/* Ruled lines */}
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "clamp(12px, 2.5vh, 26px)" }}>
                     {Array.from({ length: 11 }).map((_, i) => (
                       <div key={i} style={{ height: "0.5px", background: "var(--border)" }} />
@@ -400,25 +558,23 @@ export default function DashboardClient() {
                 }}>
                   click to open
                 </p>
-              </div>
+              </button>
             </div>
           </div>
         </>
       )}
 
-      {/* ── OPEN STATE ── */}
+      {/* -- OPEN STATE -- */}
       {isOpen && (
         <div style={{
           position: "fixed", inset: 0, top: "64px",
           display: "flex", flexDirection: "column",
           zIndex: 5,
+          height: "calc(100vh - 64px)",
         }}>
+          <TallyBand streak={streak} tallyRefs={tallyRefs} />
 
-          {/* Tally band — full width, sits right under navbar */}
-          <TallyBand streak={STREAK} tallyRefs={tallyRefs} />
-
-          {/* Open book — fills remaining space */}
-          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
 
             {/* Left page */}
             <div style={{
@@ -426,7 +582,6 @@ export default function DashboardClient() {
               overflow: "hidden",
               display: "flex", flexDirection: "column",
             }}>
-              {/* Header */}
               <div style={{
                 padding: "1.25rem 2.5rem 0.75rem",
                 display: "flex", alignItems: "baseline",
@@ -440,20 +595,18 @@ export default function DashboardClient() {
                 }}>
                   My reading list
                 </h1>
-                <span style={{ fontSize: "11px", color: "var(--muted-foreground)" }}>
-                  {STREAK} day streak
+                <span
+                  style={{ fontSize: "11px", color: "var(--muted-foreground)" }}
+                  aria-label={`${streak} day streak`}
+                >
+                  {streak} day streak
                 </span>
               </div>
 
-              {/* Divider — goes edge to edge on left page */}
-              <div style={{
-                height: "1px", background: "var(--primary)",
-                opacity: 0.4, flexShrink: 0,
-              }} />
+              <div style={{ height: "1px", background: "var(--primary)", opacity: 0.4, flexShrink: 0 }} />
 
-              {/* Cards */}
               <div style={{
-                flex: 1, padding: "1.25rem 2.5rem",
+                flex: 1, minHeight: 0, padding: "1.25rem 2.5rem",
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
                 gap: "0.75rem",
@@ -466,18 +619,22 @@ export default function DashboardClient() {
                   <BookCardItem
                     key={book.id}
                     book={book}
-                    onClick={() => router.push(`/journal/${book.id}`)}
+                    onNavigate={() => router.push(`/journal/${book.id}`)}
+                    onStatusClick={(e) => { e.stopPropagation(); setStatusModal(book); }}
                   />
                 ))}
               </div>
             </div>
 
             {/* Spine */}
-            <div style={{
-              width: "32px", flexShrink: 0,
-              background: "var(--primary)", opacity: 0.15,
-              position: "relative",
-            }}>
+            <div
+              aria-hidden="true"
+              style={{
+                width: "32px", flexShrink: 0, alignSelf: "stretch",
+                background: "var(--primary)", opacity: 0.15,
+                position: "relative",
+              }}
+            >
               <div style={{
                 position: "absolute", top: 0, bottom: 0, left: "3px",
                 width: "1px", background: "var(--primary)", opacity: 0.4,
@@ -494,24 +651,20 @@ export default function DashboardClient() {
               overflow: "hidden",
               display: "flex", flexDirection: "column",
             }}>
-              {/* Invisible header to match left page height */}
               <div style={{
                 padding: "1.25rem 2.5rem 0.75rem",
                 visibility: "hidden", flexShrink: 0,
                 fontSize: "clamp(1.1rem, 2vw, 1.6rem)", fontWeight: 700,
-              }}>
+              }}
+                aria-hidden="true"
+              >
                 placeholder
               </div>
 
-              {/* Matching divider */}
-              <div style={{
-                height: "1px", background: "var(--primary)",
-                opacity: 0.4, flexShrink: 0,
-              }} />
+              <div style={{ height: "1px", background: "var(--primary)", opacity: 0.4, flexShrink: 0 }} />
 
-              {/* Cards */}
               <div style={{
-                flex: 1, padding: "1.25rem 2.5rem",
+                flex: 1, minHeight: 0, padding: "1.25rem 2.5rem",
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
                 gap: "0.75rem",
@@ -524,7 +677,8 @@ export default function DashboardClient() {
                   <BookCardItem
                     key={book.id}
                     book={book}
-                    onClick={() => router.push(`/journal/${book.id}`)}
+                    onNavigate={() => router.push(`/journal/${book.id}`)}
+                    onStatusClick={(e) => { e.stopPropagation(); setStatusModal(book); }}
                   />
                 ))}
                 <AddBookCard onClick={() => router.push("/books/search")} />

@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 const links = [
   { href: "/", label: "Home" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/journal", label: "Journal" },
+  //  { href: "/journal", label: "Journal" },
   { href: "/books/search", label: "Books" },
 ];
 
@@ -38,7 +38,7 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-primary" />
+          <BookOpen className="w-5 h-5 text-primary" aria-hidden="true" />
           <span
             className="text-xl font-bold text-primary"
             style={{ fontFamily: "var(--font-display)" }}
@@ -74,8 +74,8 @@ export default function Navbar() {
               aria-label="Toggle dark mode"
             >
               {theme === "dark"
-                ? <Sun className="w-4 h-4" />
-                : <Moon className="w-4 h-4" />
+                ? <Sun className="w-4 h-4" aria-hidden="true" />
+                : <Moon className="w-4 h-4" aria-hidden="true" />
               }
             </button>
           )}
@@ -100,7 +100,7 @@ export default function Navbar() {
                 className="flex items-center gap-1.5 text-sm text-muted-foreground
                            hover:text-destructive transition-colors"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                 <span className="hidden sm:block">Sign out</span>
               </button>
             </div>

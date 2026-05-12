@@ -81,9 +81,7 @@ export default function RegisterPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
                   autoComplete="name"
-                  className="border border-border rounded-md px-3 py-2 text-sm
-                             bg-background focus:outline-none focus:ring-2
-                             focus:ring-ring"
+                  className="border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
@@ -99,9 +97,7 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="border border-border rounded-md px-3 py-2 text-sm
-                             bg-background focus:outline-none focus:ring-2
-                             focus:ring-ring"
+                  className="border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
@@ -117,9 +113,7 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 8 characters"
                   autoComplete="new-password"
-                  className="border border-border rounded-md px-3 py-2 text-sm
-                             bg-background focus:outline-none focus:ring-2
-                             focus:ring-ring"
+                  className="border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 

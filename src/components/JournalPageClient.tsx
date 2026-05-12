@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Plus, X, ChevronLeft, Pencil, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Book, JournalEntry, ReadingProgress } from "@/db/schema";
+import { Spine } from "./DashboardClient";
 
 type Props = {
   book: Book;
@@ -119,8 +120,8 @@ export default function JournalPageClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm, editMode, selectedEntry, confirmDelete, content, editContent, chapterStart, chapterEnd, scope]);
 
-  useEffect(() => { if (showForm) textareaRef.current?.focus(); }, [showForm]);
-  useEffect(() => { if (editMode) editTextareaRef.current?.focus(); }, [editMode]);
+  useEffect(() => { if (showForm && !isMobile) textareaRef.current?.focus(); }, [showForm]);
+  useEffect(() => { if (editMode && !isMobile) editTextareaRef.current?.focus(); }, [editMode]);
 
   // Status
   async function handleStatusChange(next: Status) {
@@ -502,7 +503,7 @@ export default function JournalPageClient({
   const showMobileModal = isMobile && (showForm || !!selectedEntry);
 
   return (
-    <div style={{ position: "fixed", inset: 0, top: "64px", display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
+    <div style={{ position: "fixed", inset: 0, top: "64px", display: "flex", flexDirection: "column", height: "calc(100dvh - 64px )" }}>
       {renderHeader()}
 
       {isMobile ? (
@@ -523,7 +524,7 @@ export default function JournalPageClient({
 
           {showMobileModal && (
             <div role="dialog" aria-modal="true" aria-label={showForm ? "New journal entry" : "Journal entry detail"}
-              style={{ position: "fixed", inset: 0, top: "64px", zIndex: 50, display: "flex", flexDirection: "column", background: "var(--card)", height: "calc(100vh - 64px)" }}>
+              style={{ position: "fixed", inset: 0, top: "64px", zIndex: 50, display: "flex", flexDirection: "column", background: "var(--card)", height: "calc(100dvh - 64px)" }}>
               <div style={{ padding: "1rem 1.25rem", borderBottom: "0.5px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 600, color: "var(--primary)", margin: 0 }}>
                   {showForm ? "New entry" : "Entry"}
@@ -555,10 +556,7 @@ export default function JournalPageClient({
             </div>
           </div>
 
-          <div aria-hidden="true" style={{ width: `${SPINE_WIDTH}px`, flexShrink: 0, alignSelf: "stretch", background: "var(--primary)", opacity: 0.15, position: "relative" }}>
-            <div style={{ position: "absolute", top: 0, bottom: 0, left: "3px", width: "1px", background: "var(--primary)", opacity: 0.4 }} />
-            <div style={{ position: "absolute", top: 0, bottom: 0, right: "3px", width: "1px", background: "var(--primary)", opacity: 0.4 }} />
-          </div>
+          <Spine currentPage={0} totalPages={0} />
 
           <div style={{ flex: 1, background: "var(--card)", display: "flex", flexDirection: "column", overflow: "hidden", maxWidth: `calc(50% - ${SPINE_WIDTH / 2}px)` }}>
             <div style={{ padding: "1rem 2rem 0.75rem", flexShrink: 0 }}>

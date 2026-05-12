@@ -389,7 +389,7 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick }: {
 
 // -- Spine -------------------------------------------------------------------
 
-function Spine({ currentPage, totalPages }: { currentPage: number; totalPages: number }) {
+export function Spine({ currentPage, totalPages }: { currentPage: number; totalPages: number }) {
   return (
     <div aria-hidden="true" style={{ width: `${SPINE_WIDTH}px`, flexShrink: 0, alignSelf: "stretch", background: "var(--primary)", opacity: 0.15, position: "relative" }}>
       <div style={{ position: "absolute", top: 0, bottom: 0, left: "3px", width: "1px", background: "var(--primary)", opacity: 0.4 }} />

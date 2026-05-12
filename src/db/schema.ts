@@ -1,4 +1,9 @@
-import { pgTable, text, boolean, integer, timestamp, date, json, uuid, uniqueIndex, index, pgEnum } from "drizzle-orm/pg-core"
+import {
+  pgTable, text, boolean, integer, timestamp, date,
+  json, uuid, uniqueIndex, index, pgEnum
+} from "drizzle-orm/pg-core"
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
 
 export const journalEntryScopeEnum = pgEnum("journal_entry_scope", [
   "CHAPTER",
@@ -9,9 +14,11 @@ export const journalEntryScopeEnum = pgEnum("journal_entry_scope", [
 export const readingStatusEnum = pgEnum("reading_status", [
   "READING",
   "READ",
-  "TBR",  // to be read
-  "DNF",  // did not finish
+  "TBR",
+  "DNF",
 ])
+
+// ── Better Auth tables ────────────────────────────────────────────────────────
 
 export const users = pgTable("users", {
   id: text().primaryKey(),
@@ -25,10 +32,15 @@ export const users = pgTable("users", {
   bio: text(),
   streakCount: integer("streak_count").default(0),
   longestStreak: integer("longest_streak").default(0),
-  lastEntryDate: date("last_entry_date")
+  lastEntryDate: date("last_entry_date"),
 
+  // Email notification opt-in for streak reminders
+  emailNotifications: boolean("email_notifications").default(false).notNull(),
 
-});
+  // Grace period: when set, the streak is still alive until this timestamp
+  // even if the user missed a day. Cleared when they write during the grace window.
+  graceUntil: timestamp("grace_until", { precision: 6, withTimezone: true }),
+})
 
 export const sessions = pgTable("sessions", {
   id: text().primaryKey(),
@@ -39,7 +51,7 @@ export const sessions = pgTable("sessions", {
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { precision: 6, withTimezone: true }).notNull(),
-});
+})
 
 export const accounts = pgTable("accounts", {
   id: text("id").primaryKey(),
@@ -55,7 +67,7 @@ export const accounts = pgTable("accounts", {
   password: text("password"),
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { precision: 6, withTimezone: true }).notNull(),
-});
+})
 
 export const verifications = pgTable("verifications", {
   id: text("id").primaryKey(),
@@ -64,8 +76,9 @@ export const verifications = pgTable("verifications", {
   expiresAt: timestamp("expires_at", { precision: 6, withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { precision: 6, withTimezone: true }).notNull(),
-});
+})
 
+// ── Books ─────────────────────────────────────────────────────────────────────
 
 export const books = pgTable("books", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -81,6 +94,8 @@ export const books = pgTable("books", {
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
 })
 
+// ── Reading progress ──────────────────────────────────────────────────────────
+
 export const readingProgress = pgTable("reading_progress", {
   id: uuid("id").primaryKey().defaultRandom(),
   status: readingStatusEnum("status").notNull().default("TBR"),
@@ -90,10 +105,11 @@ export const readingProgress = pgTable("reading_progress", {
   furthestChapter: integer("furthest_chapter"),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   bookId: uuid("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+}, (t) => [
+  uniqueIndex("reading_progress_user_book_idx").on(t.userId, t.bookId),
+])
 
-}, (t) => [uniqueIndex("reading_progress_user_book_idx").on(t.userId, t.bookId)]
-);
-
+// ── Journal entries ───────────────────────────────────────────────────────────
 
 export const journalEntries = pgTable("journal_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -106,9 +122,55 @@ export const journalEntries = pgTable("journal_entries", {
   bookId: uuid("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
   content: text().notNull(),
   writingPrompt: text("writing_prompt"),
-  isPublic: boolean("is_public").default(false)
-}, (t) => [index("journal_entries_user_book_idx").on(t.userId, t.bookId)]
-);
+  isPublic: boolean("is_public").default(false),
+}, (t) => [
+  index("journal_entries_user_book_idx").on(t.userId, t.bookId),
+])
+
+// ── Social follows (user -> user) ─────────────────────────────────────────────
+// Powers the friends feed. follower sees followingId's public journal entries.
+
+export const userFollows = pgTable("user_follows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  followerId: text("follower_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  followingId: text("following_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // A user can only follow another user once
+  uniqueIndex("user_follows_pair_idx").on(t.followerId, t.followingId),
+  index("user_follows_follower_idx").on(t.followerId),
+  index("user_follows_following_idx").on(t.followingId),
+])
+
+// ── Authors ───────────────────────────────────────────────────────────────────
+// Shared catalog of authors registered with the Gator RSS microservice.
+// gatorAuthorId is the UUID Gator assigns on registration -- used to query
+// GET /api/posts/authors?ids=... for the feed's Author News section.
+
+export const authors = pgTable("authors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  // Goodreads numeric author ID used to build their RSS feed URL
+  goodreadsId: text("goodreads_id"),
+  // UUID assigned by the Gator microservice when the author was registered
+  gatorAuthorId: text("gator_author_id").unique(),
+  createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
+})
+
+// ── Author follows (user -> author) ──────────────────────────────────────────
+// When a user follows an author, their RSS news appears in the Feed page.
+
+export const authorFollows = pgTable("author_follows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  authorId: uuid("author_id").notNull().references(() => authors.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("author_follows_pair_idx").on(t.userId, t.authorId),
+  index("author_follows_user_idx").on(t.userId),
+])
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -117,3 +179,7 @@ export type NewBook = typeof books.$inferInsert
 export type ReadingProgress = typeof readingProgress.$inferSelect
 export type JournalEntry = typeof journalEntries.$inferSelect
 export type NewJournalEntry = typeof journalEntries.$inferInsert
+export type UserFollow = typeof userFollows.$inferSelect
+export type Author = typeof authors.$inferSelect
+export type NewAuthor = typeof authors.$inferInsert
+export type AuthorFollow = typeof authorFollows.$inferSelect

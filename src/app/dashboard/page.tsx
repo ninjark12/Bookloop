@@ -3,8 +3,9 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { db } from "@/db"
 import { readingProgress, books, users } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { eq, desc } from "drizzle-orm"
 import DashboardClient from "@/components/DashboardClient"
+import { SortDesc } from "lucide-react"
 
 export default async function Dashboard() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -19,11 +20,12 @@ export default async function Dashboard() {
         coverUrl: books.coverUrl,
         status: readingProgress.status,
         furthestChapter: readingProgress.furthestChapter,
+        createdAt: books.createdAt,
       })
       .from(readingProgress)
       .innerJoin(books, eq(readingProgress.bookId, books.id))
-      .where(eq(readingProgress.userId, session.user.id)),
-
+      .where(eq(readingProgress.userId, session.user.id))
+      .orderBy(desc(books.createdAt)),
     db
       .select({ streakCount: users.streakCount })
       .from(users)

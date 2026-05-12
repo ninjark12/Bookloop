@@ -24,9 +24,14 @@ const features = [
 ];
 
 export default async function Home() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  let session = null;
+  try {
+    session = await auth.api.getSession({ headers: await headers() });
+  } catch (e) {
+    // Session cookie exists but the DB row is gone (expired and purged)
+    // or the DB is momentarily unreachable. Treat as unauthenticated.
+    console.error("[home] getSession failed:", e);
+  }
 
   if (session) redirect("/dashboard");
 

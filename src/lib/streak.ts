@@ -12,7 +12,7 @@ import { sendStreakReminderEmail } from "@/lib/email";
 // Authorization header to CRON_SECRET on every invocation.
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization");
+  /*const secret = req.headers.get("authorization");
   if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -83,4 +83,5 @@ export async function GET(req: NextRequest) {
     sent,
     errors: errors.length > 0 ? errors : undefined,
   });
+    */
 }

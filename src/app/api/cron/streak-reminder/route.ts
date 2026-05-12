@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+/* import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
@@ -83,4 +83,4 @@ export async function GET(req: NextRequest) {
     sent,
     errors: errors.length > 0 ? errors : undefined,
   });
-}
+}*/

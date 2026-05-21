@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bookloop
 
-## Getting Started
+A reading journal for people who want to read more intentionally and share with friends spoiler free. 
 
-First, run the development server:
+**Live:** [bookloop-abb1.vercel.app](https://bookloop-abb1.vercel.app)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+**Journal**
+- Write entries scoped to a single chapter, a range, or the whole book
+- Edit and delete entries inline
+- Optimistic UI — entries appear instantly and revert cleanly on failure
+- Keyboard shortcuts: `Shift+N` for new entry, `Shift+Enter` to save, `Escape` to close
+
+**Dashboard**
+- Book-style two-page spread with animated notebook opening sequence
+- Paginated grid — left page fills first, then right, then turns the page
+- Revisit animation replays after 24 hours away
+- Reading status management per book with optimistic updates
+
+**Feed**
+- Friends' public journal entries with automatic spoiler protection — entries are hidden until you've reached that chapter
+- Author news via RSS aggregation (Gator microservice integration)
+
+**Streak system**
+- Daily reading streak with a 24-hour grace period before it resets
+- Email reminders via Resend when you're in the grace window
+- Redis-backed deduplication so streaks are only awarded once per day
+
+**Search**
+- Book search via Open Library API with write-through cache to PostgreSQL
+
+**Chrome extension**
+- Detects chapter changes on MangaDex, Webtoon, MangaPlus, and Tapas
+- Prompts a journal entry modal with an 8-second delay
+- Deep-links directly into the correct book and chapter in the app
+
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router, Turbopack) |
+| Language | TypeScript |
+| Auth | Better Auth |
+| Database | Supabase PostgreSQL via Drizzle ORM |
+| Cache | Redis (ioredis locally, Upstash on Vercel) |
+| Styling | Tailwind CSS + shadcn/ui |
+| Animation | GSAP |
+| Email | Resend |
+| Deployment | Vercel |
+| Local infra | Docker + Docker Compose |
+
+---
+
+
+
+## Project structure
+
+```
+src/
+  app/
+    (auth)/           # login and register pages
+    api/              # REST API routes
+      books/          # search, add, status, remove
+      feed/           # friends activity + author news
+      journal/        # CRUD for journal entries
+      user/           # account deletion, notification prefs
+      cron/           # streak reminder (Vercel cron)
+    dashboard/        # main book grid
+    feed/             # social feed page
+    journal/[bookId]/ # per-book journal
+    profile/          # account settings
+  components/
+    layout/           # Navbar, Footer
+    DashboardClient   # animated book spread with pagination
+    JournalPageClient # two-page journal layout
+    FeedClient        # friends + author news tabs
+    ProfileClient     # notification toggle, delete account
+  db/
+    schema.ts         # Drizzle schema
+    index.ts          # database client
+  lib/
+    auth.ts           # Better Auth server config
+    auth-client.ts    # Better Auth client config
+    get-session.ts    # safe session helper (try/catch wrapper)
+    streak.ts         # streak logic with grace period
+    email.ts          # Resend email templates
+    gator-client.ts   # Gator RSS microservice client
+    redis.ts          # Redis singleton
+bookloop-extension/   # Chrome extension
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## License
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

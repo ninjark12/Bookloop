@@ -152,11 +152,13 @@ export default function JournalPageClient({
     setError("");
 
     const tempId = `optimistic-${Date.now()}`;
-    const resolvedStart = scope === "WHOLE_BOOK" ? 9999 : chapterStart;
+    const resolvedStart = scope === "WHOLE_BOOK" ? 9999 : (chapterStart || 1);
     const resolvedEnd =
       scope === "WHOLE_BOOK" ? 9999
-        : scope === "CHAPTER" ? chapterStart
-          : chapterEnd;
+        : scope === "CHAPTER" ? (chapterStart || 1)
+          : (chapterEnd || chapterStart || 1)
+
+      ;
 
     const optimisticEntry: OptimisticEntry = {
       id: tempId,
@@ -271,10 +273,10 @@ export default function JournalPageClient({
               <label htmlFor="chapter-start" style={{ fontSize: "10px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 {scope === "CHAPTER" ? "Chapter" : "From chapter"}
               </label>
-              <input id="chapter-start" type="number" min={1} value={chapterStart}
+              <input id="chapter-start" type="number" value={chapterStart}
                 onChange={(e) => {
-                  const v = parseInt(e.target.value) || 1;
-                  setChapterStart(v);
+                  const v = parseInt(e.target.value);
+                  setChapterStart(isNaN(v) ? 0 : v);
                   if (scope === "CHAPTER") setChapterEnd(v);
                   else if (v > chapterEnd) setChapterEnd(v);
                 }}

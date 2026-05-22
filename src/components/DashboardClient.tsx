@@ -59,15 +59,21 @@ const statusBg: Record<Status, string> = {
 
 const REVISIT_MS = 24 * 60 * 60 * 1000;
 const VISIT_KEY = "bookloop_last_visit";
+const REVISIT_KEY = "bookloop_session_active";
 const TALLY_LIMIT = 15;
 
 function shouldShowNotebook() {
   if (typeof window === "undefined") return false;
   const raw = localStorage.getItem(VISIT_KEY);
+  const rawRevisit = sessionStorage.getItem(REVISIT_KEY);
+  if (!rawRevisit) return true;
   if (!raw) return true;
   return Date.now() - parseInt(raw, 10) > REVISIT_MS;
 }
-function recordVisit() { localStorage.setItem(VISIT_KEY, Date.now().toString()); }
+function recordVisit() {
+  sessionStorage.setItem("bookloop_session_active", "1");
+  localStorage.setItem(VISIT_KEY, Date.now().toString());
+}
 
 // -- Helpers -----------------------------------------------------------------
 

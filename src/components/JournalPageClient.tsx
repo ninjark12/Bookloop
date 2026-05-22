@@ -273,12 +273,13 @@ export default function JournalPageClient({
               <label htmlFor="chapter-start" style={{ fontSize: "10px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 {scope === "CHAPTER" ? "Chapter" : "From chapter"}
               </label>
-              <input id="chapter-start" type="number" value={chapterStart}
+              <input id="chapter-start" type="number" value={chapterStart || ""}
                 onChange={(e) => {
                   const v = parseInt(e.target.value);
+                  const num = isNaN(v) ? 0 : v;
                   setChapterStart(isNaN(v) ? 0 : v);
-                  if (scope === "CHAPTER") setChapterEnd(v);
-                  else if (v > chapterEnd) setChapterEnd(v);
+                  if (scope === "CHAPTER") setChapterEnd(num);
+                  else if (v > chapterEnd) setChapterEnd(num);
                 }}
                 style={{ width: "72px", padding: "6px 8px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "13px" }}
               />
@@ -289,7 +290,7 @@ export default function JournalPageClient({
               <label htmlFor="chapter-end" style={{ fontSize: "10px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 To chapter
               </label>
-              <input id="chapter-end" type="number" min={chapterStart} value={chapterEnd}
+              <input id="chapter-end" type="number" min={chapterStart} value={chapterEnd || ""}
                 onChange={(e) => setChapterEnd(parseInt(e.target.value) || chapterStart)}
                 style={{ width: "72px", padding: "6px 8px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "13px" }}
               />

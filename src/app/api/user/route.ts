@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { users, journalEntries, readingProgress, books } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
+export const dynamic = "force-dynamic"
 export async function DELETE(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {

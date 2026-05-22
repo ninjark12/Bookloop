@@ -5,7 +5,7 @@ import { db } from "@/db"
 import { journalEntries, books, readingProgress } from "@/db/schema"
 import { eq, and, desc } from "drizzle-orm"
 import JournalPageClient from "@/components/JournalPageClient"
-
+export const dynamic = "force-dynamic"
 export default async function JournalPage({
   params,
 }: {

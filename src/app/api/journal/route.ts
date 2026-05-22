@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { journalEntries, readingProgress } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-
+export const dynamic = "force-dynamic"
 const VALID_SCOPES = ["CHAPTER", "RANGE", "WHOLE_BOOK"] as const;
 type Scope = (typeof VALID_SCOPES)[number];
 

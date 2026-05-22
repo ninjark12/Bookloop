@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { and, eq, inArray, desc } from "drizzle-orm";
 import { getPostsForAuthors } from "@/lib/gator-client";
-
+export const dynamic = "force-dynamic"
 function isSpoiler(entryChapterEnd: number, viewerChapter: number | null): boolean {
   return entryChapterEnd > (viewerChapter ?? 0);
 }

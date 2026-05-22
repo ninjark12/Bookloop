@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import ProfileClient from "@/components/ProfileClient";
-
+export const dynamic = "force-dynamic"
 export default async function ProfilePage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");

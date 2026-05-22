@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import HeroSection from "@/components/HeroSection";
 import FeatureCard from "@/components/FeatureCard";
 import { BookOpen, Shield, Users } from "lucide-react";
-
+export const dynamic = "force-dynamic"
 const features = [
   {
     icon: BookOpen,

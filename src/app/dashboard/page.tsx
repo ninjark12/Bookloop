@@ -6,7 +6,7 @@ import { readingProgress, books, users } from "@/db/schema"
 import { eq, desc } from "drizzle-orm"
 import DashboardClient from "@/components/DashboardClient"
 import { SortDesc } from "lucide-react"
-
+export const dynamic = "force-dynamic"
 export default async function Dashboard() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/login")

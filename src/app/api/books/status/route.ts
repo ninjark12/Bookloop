@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { readingProgress } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-
+export const dynamic = "force-dynamic"
 const VALID_STATUSES = ["READING", "READ", "TBR", "DNF"] as const;
 type Status = (typeof VALID_STATUSES)[number];
 

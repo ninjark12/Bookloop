@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { z } from "zod"
-
+export const dynamic = "force-dynamic"
 const addBookSchema = z.object({
   // Either an existing book ID from our DB
   bookId: z.string().uuid().optional().or(z.literal(undefined)),

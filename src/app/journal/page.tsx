@@ -28,6 +28,5 @@ export default async function JournalIndexPage({
     redirect(`/journal/${params.bookId}?${url.searchParams.toString()}`);
   }
 
-  // No bookId -- show the general journal index (list of all books with entries)
   redirect("/dashboard");
 }

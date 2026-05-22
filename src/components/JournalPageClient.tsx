@@ -71,8 +71,8 @@ export default function JournalPageClient({
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   // New-entry form
-  const [chapterStart, setChapterStart] = useState(progress?.furthestChapter ?? 1);
-  const [chapterEnd, setChapterEnd] = useState(progress?.furthestChapter ?? 1);
+  const [chapterStart, setChapterStart] = useState(progress?.furthestChapter ?? 0);
+  const [chapterEnd, setChapterEnd] = useState(progress?.furthestChapter ?? 0);
   const [scope, setScope] = useState<"CHAPTER" | "RANGE" | "WHOLE_BOOK">("CHAPTER");
   const [content, setContent] = useState("");
   const [isPublic, setIsPublic] = useState(false);
@@ -477,7 +477,7 @@ export default function JournalPageClient({
     }
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        {entries.map((entry) => (
+        {entries.sort((a, b) => (b.chapterEnd ?? 0) - (a.chapterEnd ?? 0)).map((entry) => (
           <button key={entry.id} type="button"
             aria-label={`${formatChapter(entry)}, ${formatDate(entry.createdAt)} -- click to expand`}
             aria-pressed={selectedEntry?.id === entry.id}

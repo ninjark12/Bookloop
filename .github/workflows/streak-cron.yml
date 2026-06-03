@@ -1,0 +1,16 @@
+name: Streak Reminder Cron
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # every hour
+  workflow_dispatch:      
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call streak reminder
+        run: |
+          curl -f -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://bookloop-abb1.vercel.app/api/cron/streak-reminder

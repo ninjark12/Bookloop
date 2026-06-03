@@ -1,87 +1,102 @@
-import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { and, eq, isNotNull, lt } from "drizzle-orm";
-import { sendStreakReminderEmail } from "@/lib/email";
+import { users, journalEntries } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { redis } from "@/lib/redis";
 
-// This route is called by Vercel Cron (see vercel.json).
-// It runs every hour and sends reminder emails to users whose
-// streak grace period is active and who have opted in.
-//
-// To protect against arbitrary callers, Vercel sets the
-// Authorization header to CRON_SECRET on every invocation.
+// Redis key: one per user per calendar day
+// TTL 25hrs so it survives midnight by an hour
+function streakKey(userId: string): string {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return `streak:awarded:${userId}:${today}`;
+}
 
-export async function GET(req: NextRequest) {
-  /*const secret = req.headers.get("authorization");
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// Grace period duration in ms (24 hours)
+const GRACE_MS = 24 * 60 * 60 * 1000;
+
+export async function updateStreak(userId: string): Promise<void> {
+  // -- Dedup: only award once per calendar day --
+  // Redis failure is non-fatal -- worst case we double-count a streak day,
+  // which is far better than blocking a journal entry save.
+  let alreadyAwarded = false;
+  try {
+    alreadyAwarded = !!(await redis.get(streakKey(userId)));
+  } catch (e) {
+    console.error('[streak] redis.get failed, skipping dedup:', e);
   }
+  if (alreadyAwarded) return;
 
-  const now = new Date();
-
-  // Find users who:
-  //   1. Have email notifications turned on
-  //   2. Are currently in a grace period (graceUntil is set and in the future)
-  //   3. Have not yet been emailed this grace period (we use Redis to track this)
-  const atRiskUsers = await db
+  const [user] = await db
     .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
       streakCount: users.streakCount,
       graceUntil: users.graceUntil,
     })
     .from(users)
-    .where(
-      and(
-        eq(users.emailNotifications, true),
-        isNotNull(users.graceUntil),
-        // graceUntil is in the future -- still alive
-        // Drizzle doesn't have gt for dates directly; use raw or cast
-        // We filter in JS below for safety
-      )
-    );
+    .where(eq(users.id, userId))
+    .limit(1);
 
-  let sent = 0;
-  const errors: string[] = [];
+  if (!user) return;
 
-  for (const user of atRiskUsers) {
-    if (!user.graceUntil) continue;
-    const graceDate = new Date(user.graceUntil);
+  // Find when the last entry (before today) was created
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    // Skip if grace has already expired
-    if (graceDate <= now) continue;
+  const [lastEntry] = await db
+    .select({ createdAt: journalEntries.createdAt })
+    .from(journalEntries)
+    .where(eq(journalEntries.userId, userId))
+    .orderBy(desc(journalEntries.createdAt))
+    .limit(1);
 
-    // Skip if email is missing
-    if (!user.email) continue;
+  const lastDate = lastEntry ? new Date(lastEntry.createdAt) : null;
 
-    // Dedup: only email once per grace period per user
-    // Key expires when the grace period does
-    const { redis } = await import("@/lib/redis");
-    const dedupKey = `streak:reminder:sent:${user.id}`;
-    const alreadySent = await redis.get(dedupKey);
-    if (alreadySent) continue;
+  let newStreak = user.streakCount ?? 0;
+  let newGraceUntil: Date | null = user.graceUntil ? new Date(user.graceUntil) : null;
+  const now = new Date();
 
-    try {
-      await sendStreakReminderEmail({
-        to: user.email,
-        name: user.name?.split(" ")[0] ?? "there",
-        streakCount: user.streakCount ?? 1,
-        graceUntil: graceDate,
-      });
+  if (!lastDate) {
+    // First ever entry
+    newStreak = 1;
+    newGraceUntil = null;
+  } else {
+    const last = new Date(lastDate);
+    last.setHours(0, 0, 0, 0);
+    const dayDiff = Math.round((today.getTime() - last.getTime()) / 86400000);
 
-      // Mark as sent -- TTL matches when the grace period expires
-      const ttlSeconds = Math.ceil((graceDate.getTime() - now.getTime()) / 1000);
-      await redis.setex(dedupKey, ttlSeconds, "1");
-      sent++;
-    } catch (e) {
-      errors.push(`${user.id}: ${e instanceof Error ? e.message : "unknown"}`);
+    if (dayDiff === 0) {
+      // Same calendar day -- streak already counted, just award Redis key
+    } else if (dayDiff === 1) {
+      // Consecutive day -- increment and clear any grace period
+      newStreak = (user.streakCount ?? 0) + 1;
+      newGraceUntil = null;
+    } else {
+      // Missed at least one day
+      const inGrace = newGraceUntil && now < newGraceUntil;
+      if (inGrace) {
+        // Writing during grace period -- streak continues, clear grace
+        newStreak = (user.streakCount ?? 0) + 1;
+        newGraceUntil = null;
+      } else {
+        // Streak broken -- start fresh and set new grace period
+        // (grace period allows them to recover tomorrow without losing again)
+        newStreak = 1;
+        newGraceUntil = new Date(now.getTime() + GRACE_MS);
+      }
     }
   }
 
-  return NextResponse.json({
-    sent,
-    errors: errors.length > 0 ? errors : undefined,
-  });
-    */
+  // -- Write to DB --
+  await db
+    .update(users)
+    .set({
+      streakCount: newStreak,
+      graceUntil: newGraceUntil,
+    })
+    .where(eq(users.id, userId));
+
+  // -- Mark awarded for today (TTL 25hrs) --
+  try {
+    await redis.setex(streakKey(userId), 25 * 60 * 60, "1");
+  } catch (e) {
+    console.error('[streak] redis.setex failed:', e);
+  }
 }

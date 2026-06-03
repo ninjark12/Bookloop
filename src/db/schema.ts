@@ -3,7 +3,7 @@ import {
   json, uuid, uniqueIndex, index, pgEnum
 } from "drizzle-orm/pg-core"
 
-// ── Enums ─────────────────────────────────────────────────────────────────────
+//  Enums 
 
 export const journalEntryScopeEnum = pgEnum("journal_entry_scope", [
   "CHAPTER",
@@ -18,7 +18,7 @@ export const readingStatusEnum = pgEnum("reading_status", [
   "DNF",
 ])
 
-// ── Better Auth tables ────────────────────────────────────────────────────────
+//  Better Auth tables 
 
 export const users = pgTable("users", {
   id: text().primaryKey(),
@@ -78,7 +78,7 @@ export const verifications = pgTable("verifications", {
   updatedAt: timestamp("updated_at", { precision: 6, withTimezone: true }).notNull(),
 })
 
-// ── Books ─────────────────────────────────────────────────────────────────────
+//  Books 
 
 export const books = pgTable("books", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -94,7 +94,7 @@ export const books = pgTable("books", {
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
 })
 
-// ── Reading progress ──────────────────────────────────────────────────────────
+//  Reading progress 
 
 export const readingProgress = pgTable("reading_progress", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -109,7 +109,7 @@ export const readingProgress = pgTable("reading_progress", {
   uniqueIndex("reading_progress_user_book_idx").on(t.userId, t.bookId),
 ])
 
-// ── Journal entries ───────────────────────────────────────────────────────────
+//  Journal entries 
 
 export const journalEntries = pgTable("journal_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -127,7 +127,7 @@ export const journalEntries = pgTable("journal_entries", {
   index("journal_entries_user_book_idx").on(t.userId, t.bookId),
 ])
 
-// ── Social follows (user -> user) ─────────────────────────────────────────────
+//  Social follows (user -> user) 
 // Powers the friends feed. follower sees followingId's public journal entries.
 
 export const userFollows = pgTable("user_follows", {
@@ -142,7 +142,7 @@ export const userFollows = pgTable("user_follows", {
   index("user_follows_following_idx").on(t.followingId),
 ])
 
-// ── Authors ───────────────────────────────────────────────────────────────────
+//  Authors 
 // Shared catalog of authors registered with the Gator RSS microservice.
 // gatorAuthorId is the UUID Gator assigns on registration -- used to query
 // GET /api/posts/authors?ids=... for the feed's Author News section.
@@ -157,7 +157,7 @@ export const authors = pgTable("authors", {
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
 })
 
-// ── Author follows (user -> author) ──────────────────────────────────────────
+//  Author follows (user -> author) 
 // When a user follows an author, their RSS news appears in the Feed page.
 
 export const authorFollows = pgTable("author_follows", {
@@ -170,7 +170,7 @@ export const authorFollows = pgTable("author_follows", {
   index("author_follows_user_idx").on(t.userId),
 ])
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+//  Types 
 
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert

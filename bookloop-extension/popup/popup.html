@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bookloop</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="header">
+    <span class="logo">Bookloop</span>
+  </header>
+
+  <main class="main">
+
+    <!-- Site not supported -->
+    <div id="view-unsupported" class="view hidden">
+      <p class="msg-muted">No supported reading site detected.</p>
+      <p class="msg-small">Bookloop works on MangaDex, Webtoon, MangaPlus, and Tapas.</p>
+    </div>
+
+    <!-- Not on a chapter page -->
+    <div id="view-no-chapter" class="view hidden">
+      <p class="msg-muted">Open a chapter to link a book.</p>
+      <p class="msg-small" id="site-label"></p>
+    </div>
+
+    <!-- Main linking UI -->
+    <div id="view-main" class="view hidden">
+      <div class="series-bar">
+        <span class="label">Series</span>
+        <span class="series-name" id="series-name"></span>
+      </div>
+
+      <!-- Linked book display -->
+      <div id="linked-section" class="linked-section hidden">
+        <div class="linked-card">
+          <div class="linked-info">
+            <span class="label">Linked book</span>
+            <span class="linked-title" id="linked-title"></span>
+          </div>
+          <button class="btn-unlink" id="btn-unlink">Unlink</button>
+        </div>
+      </div>
+
+      <!-- Book search -->
+      <div class="search-section">
+        <p class="section-label" id="search-label">Link a book</p>
+        <div class="search-row">
+          <input
+            id="search-input"
+            class="search-input"
+            type="text"
+            placeholder="Search by title..."
+            autocomplete="off"
+          />
+          <button class="btn-search" id="btn-search">Search</button>
+        </div>
+        <div id="search-status" class="search-status hidden"></div>
+        <ul id="search-results" class="results-list hidden"></ul>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

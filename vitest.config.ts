@@ -6,6 +6,14 @@ export default defineConfig({
     environment: "node",
     globals: true,
     setupFiles: ["./src/tests/setup.ts"],
+    environmentMatchGlobs: [
+      ["src/tests/extension/**", "jsdom"],
+    ],
+    environmentOptions: {
+      jsdom: {
+        runScripts: "dangerously",
+      },
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

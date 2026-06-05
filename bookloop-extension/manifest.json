@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Bookloop",
+  "description": "Log manga and webcomic chapters to your Bookloop reading journal",
+  "version": "1.0.0",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://mangadex.org/*",
+    "https://www.webtoons.com/*",
+    "https://mangaplus.shueisha.co.jp/*",
+    "https://tapas.io/*",
+    "https://bookloop-abb1.vercel.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mangadex.org/*",
+        "https://www.webtoons.com/*",
+        "https://mangaplus.shueisha.co.jp/*",
+        "https://tapas.io/*"
+      ],
+      "js": ["adapters.js", "content.js"],
+      "css": ["modal.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Bookloop"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "bookloop@bookloop-abb1.vercel.app",
+      "strict_min_version": "115.0"
+    }
+  }
+}

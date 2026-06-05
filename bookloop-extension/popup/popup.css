@@ -1,0 +1,224 @@
+/* Popup styles — mirrors Bookloop's design tokens */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 300px;
+  font-family: Georgia, "Times New Roman", serif;
+  background: #F5F0E8;
+  color: #2C1810;
+  font-size: 13px;
+}
+
+/* ---- Header ---- */
+.header {
+  background: #6B4C2A;
+  padding: 10px 14px;
+}
+
+.logo {
+  color: #F5F0E8;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Main area ---- */
+.main {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.view { display: flex; flex-direction: column; gap: 10px; }
+.hidden { display: none !important; }
+
+/* ---- Muted messages ---- */
+.msg-muted {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2C1810;
+}
+
+.msg-small {
+  font-size: 11px;
+  color: #8C7B6B;
+  line-height: 1.5;
+}
+
+/* ---- Series bar ---- */
+.series-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #E0D8C8;
+  border-radius: 0.625rem;
+  border: 0.5px solid #D4C9B5;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8C7B6B;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.series-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2C1810;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Linked book card ---- */
+.linked-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #E0D8C8;
+  border: 0.5px solid #D4C9B5;
+  border-radius: 0.625rem;
+}
+
+.linked-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.linked-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2C1810;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-unlink {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: none;
+  border: 0.5px solid #D4C9B5;
+  border-radius: 0.625rem;
+  color: #8C7B6B;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.btn-unlink:hover {
+  background: #D4C9B5;
+}
+
+/* ---- Search section ---- */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8C7B6B;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.search-row {
+  display: flex;
+  gap: 6px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  background: #fff;
+  border: 0.5px solid #D4C9B5;
+  border-radius: 0.625rem;
+  color: #2C1810;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.search-input:focus {
+  border-color: #6B4C2A;
+}
+
+.btn-search {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  background: #6B4C2A;
+  color: #F5F0E8;
+  border: none;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-search:hover { opacity: 0.85; }
+.btn-search:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- Status / error ---- */
+.search-status {
+  font-size: 11px;
+  color: #8C7B6B;
+  padding: 4px 0;
+}
+
+.search-status.error { color: #c0392b; }
+
+/* ---- Results list ---- */
+.results-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.result-item {
+  padding: 8px 10px;
+  background: #E0D8C8;
+  border: 0.5px solid #D4C9B5;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.result-item:hover {
+  background: #D4C9B5;
+}
+
+.result-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2C1810;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-author {
+  font-size: 11px;
+  color: #8C7B6B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

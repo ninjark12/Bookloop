@@ -76,6 +76,31 @@ vi.mock("@/lib/redis", () => ({
   setStreak: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock Chrome extension APIs (used by extension tests; no-op in all others)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(global as any).chrome = {
+  storage: {
+    local: {
+      get: vi.fn(),
+      set: vi.fn(),
+      remove: vi.fn(),
+    },
+    session: {
+      get: vi.fn(),
+      set: vi.fn(),
+    },
+  },
+  runtime: {
+    sendMessage: vi.fn(),
+    onMessage: { addListener: vi.fn() },
+    lastError: null,
+  },
+  tabs: {
+    query: vi.fn(),
+    sendMessage: vi.fn(),
+  },
+};
+
 // Reset call tracking between tests (implementations persist)
 beforeEach(() => {
   vi.clearAllMocks();

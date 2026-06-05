@@ -267,21 +267,6 @@ function FriendEntryCard({
                 </span>
               </div>
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {entry.spoilerTags.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setRevealed("tags")}
-                    style={{
-                      padding: "4px 10px", fontSize: "11px",
-                      border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
-                      background: "var(--card)", color: "var(--foreground)",
-                      cursor: "pointer", fontFamily: "inherit",
-                      display: "flex", alignItems: "center", gap: "4px",
-                    }}
-                  >
-                    <Eye size={11} aria-hidden="true" /> Peek at themes
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => setRevealed("full")}
@@ -295,6 +280,21 @@ function FriendEntryCard({
                 >
                   Read entry
                 </button>
+                {entry.spoilerTags.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setRevealed("tags")}
+                    style={{
+                      padding: "4px 10px", fontSize: "11px",
+                      border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+                      background: "var(--card)", color: "var(--foreground)",
+                      cursor: "pointer", fontFamily: "inherit",
+                      display: "flex", alignItems: "center", gap: "4px",
+                    }}
+                  >
+                    <Eye size={11} aria-hidden="true" /> Show spoiler tags
+                  </button>
+                )}
               </div>
             </div>
           )}

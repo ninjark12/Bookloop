@@ -26,6 +26,13 @@ const STATUS_LABELS: Record<Status, string> = {
 
 const SPINE_WIDTH = 32;
 
+// One past the highest chapterEnd across non-whole-book entries, or 1 if none exist.
+function nextChapterDefault(entries: JournalEntry[], furthestChapter?: number | null): number {
+  const regular = entries.filter(e => e.chapterEnd !== 9999);
+  if (regular.length === 0) return furthestChapter ?? 1;
+  return Math.max(...regular.map(e => e.chapterEnd ?? 0)) + 1;
+}
+
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -71,8 +78,8 @@ export default function JournalPageClient({
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   // New-entry form
-  const [chapterStart, setChapterStart] = useState(progress?.furthestChapter ?? 0);
-  const [chapterEnd, setChapterEnd] = useState(progress?.furthestChapter ?? 0);
+  const [chapterStart, setChapterStart] = useState(() => nextChapterDefault(initialEntries, progress?.furthestChapter));
+  const [chapterEnd, setChapterEnd] = useState(() => nextChapterDefault(initialEntries, progress?.furthestChapter));
   const [scope, setScope] = useState<"CHAPTER" | "RANGE" | "WHOLE_BOOK">("CHAPTER");
   const [content, setContent] = useState("");
   const [isPublic, setIsPublic] = useState(false);
@@ -109,10 +116,7 @@ export default function JournalPageClient({
       }
       if (e.shiftKey && e.key === "N") {
         e.preventDefault();
-        setSelectedEntry(null);
-        setEditMode(false);
-        setConfirmDelete(false);
-        setShowForm(true);
+        openNewEntryForm();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -137,6 +141,17 @@ export default function JournalPageClient({
       if (!res.ok) throw new Error();
     } catch { setBookStatus(prev); }
     finally { setStatusSaving(false); }
+  }
+
+  // Open new-entry form pre-filled with the next chapter after the last entry
+  function openNewEntryForm() {
+    const next = nextChapterDefault(entries, progress?.furthestChapter);
+    setChapterStart(next);
+    setChapterEnd(next);
+    setSelectedEntry(null);
+    setEditMode(false);
+    setConfirmDelete(false);
+    setShowForm(true);
   }
 
   // Scope toggle
@@ -459,7 +474,7 @@ export default function JournalPageClient({
           </select>
         </div>
         {!isMobile && (
-          <Button size="sm" onClick={() => { setSelectedEntry(null); setEditMode(false); setConfirmDelete(false); setShowForm(true); }}>
+          <Button size="sm" onClick={openNewEntryForm}>
             <Plus size={14} aria-hidden="true" style={{ marginRight: "4px" }} />
             New entry
           </Button>
@@ -514,7 +529,7 @@ export default function JournalPageClient({
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--card)", overflow: "hidden" }}>
             <div style={{ padding: "1rem 1.25rem 0.75rem", flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 600, color: "var(--primary)", margin: 0 }}>Entries</h2>
-              <Button size="sm" onClick={() => { setSelectedEntry(null); setEditMode(false); setConfirmDelete(false); setShowForm(true); }}>
+              <Button size="sm" onClick={openNewEntryForm}>
                 <Plus size={14} aria-hidden="true" style={{ marginRight: "4px" }} />
                 New entry
               </Button>
@@ -572,7 +587,7 @@ export default function JournalPageClient({
               {showForm ? renderForm()
                 : selectedEntry ? renderEntryDetail()
                   : (
-                    <button type="button" aria-label="Write a new journal entry" onClick={() => setShowForm(true)}
+                    <button type="button" aria-label="Write a new journal entry" onClick={openNewEntryForm}
                       style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)" }}>
                       <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Plus size={20} aria-hidden="true" style={{ color: "var(--muted-foreground)" }} />

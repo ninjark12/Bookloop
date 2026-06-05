@@ -13,13 +13,13 @@ import {
 } from "@/db/schema";
 import { and, eq, inArray, desc, or } from "drizzle-orm";
 import { getPostsForAuthors } from "@/lib/gator-client";
+import { getSpoilerTags } from "@/lib/bedrock";
 export const dynamic = "force-dynamic"
+
 function isSpoiler(entryChapterEnd: number, viewerChapter: number | null): boolean {
   return entryChapterEnd > (viewerChapter ?? 0);
 }
 
-// isPublic is boolean | null from Drizzle (column has no .notNull() in schema).
-// content becomes string | null after spoiler filtering.
 type FriendEntry = {
   id: string;
   content: string | null;
@@ -34,6 +34,7 @@ type FriendEntry = {
   bookTitle: string;
   bookCoverUrl: string | null;
   spoilered: boolean;
+  spoilerTags: string[];
 };
 
 export async function GET(req: NextRequest) {
@@ -125,15 +126,27 @@ export async function GET(req: NextRequest) {
         viewerProgress.map((p) => [p.bookId, p.furthestChapter])
       );
 
-      friendEntries = rawEntries.map((entry): FriendEntry => {
-        const viewerChapter = progressMap.get(entry.bookId) ?? null;
-        const spoilered = isSpoiler(entry.chapterEnd, viewerChapter);
-        return {
-          ...entry,
-          content: spoilered ? null : entry.content,
-          spoilered,
-        };
-      });
+      // First pass: determine spoiler status for every entry
+      const withSpoilerFlag = rawEntries.map((entry) => ({
+        ...entry,
+        spoilered: isSpoiler(entry.chapterEnd, progressMap.get(entry.bookId) ?? null),
+      }));
+
+      // Second pass: fetch AI tags for spoilered entries in parallel.
+      // Non-spoilered entries resolve immediately with [].
+      // getSpoilerTags never throws, so Promise.all is safe here.
+      const tagResults = await Promise.all(
+        withSpoilerFlag.map((entry) =>
+          entry.spoilered ? getSpoilerTags(entry.content ?? "") : Promise.resolve([])
+        )
+      );
+
+      friendEntries = withSpoilerFlag.map((entry, i): FriendEntry => ({
+        ...entry,
+        // Always send content — spoiler hiding is the client's job
+        content: entry.content,
+        spoilerTags: tagResults[i],
+      }));
     }
 
     // -- 2. Author news from Gator --

@@ -18,6 +18,7 @@ type FriendEntry = {
   bookTitle: string;
   bookCoverUrl: string | null;
   spoilered: boolean;
+  spoilerTags: string[];
 };
 
 type AuthorPost = {
@@ -81,6 +82,98 @@ function formatChapterLabel(entry: FriendEntry): string {
   return `Ch. ${entry.chapterStart}-${entry.chapterEnd}`;
 }
 
+// -- Full entry modal --
+
+function EntryModal({ entry, onClose }: { entry: FriendEntry; onClose: () => void }) {
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Journal entry for ${entry.bookTitle}`}
+      style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "1.5rem",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: "var(--card)",
+        border: "0.5px solid var(--border)",
+        borderRadius: "var(--radius)",
+        maxWidth: "580px", width: "100%",
+        height: "75vh",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+        overflow: "hidden",
+      }}>
+        {/* Book context bar — mirrors the journal page header */}
+        <div style={{
+          padding: "0.75rem 1.25rem",
+          borderBottom: "0.5px solid var(--border)",
+          display: "flex", alignItems: "center", gap: "0.75rem",
+          flexShrink: 0,
+        }}>
+          {entry.bookCoverUrl && (
+            <img
+              src={entry.bookCoverUrl} alt=""
+              style={{ width: "28px", height: "40px", objectFit: "cover", borderRadius: "2px", flexShrink: 0 }}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: "var(--font-display)", fontSize: "14px", fontWeight: 600, color: "var(--foreground)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {entry.bookTitle}
+            </p>
+            <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0 }}>
+              {entry.authorName ?? "Reader"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: "var(--muted-foreground)", cursor: "pointer", flexShrink: 0 }}
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Section label + primary divider — mirrors the right panel heading row */}
+        <div style={{ padding: "1rem 1.25rem 0.75rem", flexShrink: 0 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 600, color: "var(--primary)", margin: 0 }}>
+            Entry
+          </h2>
+        </div>
+        <div style={{ height: "1px", background: "var(--primary)", opacity: 0.4, flexShrink: 0 }} />
+
+        {/* Chapter + date row — fixed, not scrollable */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0.75rem 1.25rem 0", flexShrink: 0 }}>
+          <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--primary)", background: "color-mix(in srgb, var(--primary) 12%, transparent)", borderRadius: "4px", padding: "2px 6px" }}>
+            {formatChapterLabel(entry)}
+          </span>
+          <span style={{ fontSize: "10px", color: "var(--muted-foreground)" }}>
+            {formatDate(entry.createdAt)}
+          </span>
+        </div>
+
+        {/* Scrollable content — mirrors renderEntryDetail exactly */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "1rem 1.25rem", fontSize: "14px", lineHeight: 1.8, color: "var(--foreground)", fontFamily: "var(--font-serif)", whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>
+          {entry.content}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Friend entry card --
 
 function FriendEntryCard({
@@ -90,7 +183,8 @@ function FriendEntryCard({
   entry: FriendEntry;
   onBookClick: (bookId: string) => void;
 }) {
-  const [revealed, setRevealed] = useState(false);
+  const [revealed, setRevealed] = useState<false | "tags" | "full">(false);
+  const [showFullEntry, setShowFullEntry] = useState(false);
 
   return (
     <article style={{
@@ -105,7 +199,6 @@ function FriendEntryCard({
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-          {/* Avatar placeholder */}
           <div style={{
             width: "30px", height: "30px", borderRadius: "50%", flexShrink: 0,
             background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
@@ -162,14 +255,10 @@ function FriendEntryCard({
         )}
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          {entry.spoilered && !revealed ? (
+          {entry.spoilered && revealed === false && (
             <div style={{
-              background: "var(--muted)",
-              borderRadius: "var(--radius)",
-              padding: "0.75rem",
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
+              background: "var(--muted)", borderRadius: "var(--radius)",
+              padding: "0.75rem", display: "flex", flexDirection: "column", gap: "10px",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <EyeOff size={13} aria-hidden="true" style={{ color: "var(--muted-foreground)" }} />
@@ -177,34 +266,121 @@ function FriendEntryCard({
                   Possible spoiler -- you have not reached {formatChapterLabel(entry)} yet
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setRevealed(true)}
-                style={{
-                  background: "none", border: "none", cursor: "pointer", padding: 0,
-                  fontSize: "11px", color: "var(--primary)", textDecoration: "underline",
-                  textAlign: "left", fontFamily: "inherit",
-                  display: "flex", alignItems: "center", gap: "4px",
-                }}
-              >
-                <Eye size={11} aria-hidden="true" /> Reveal anyway
-              </button>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {entry.spoilerTags.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setRevealed("tags")}
+                    style={{
+                      padding: "4px 10px", fontSize: "11px",
+                      border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+                      background: "var(--card)", color: "var(--foreground)",
+                      cursor: "pointer", fontFamily: "inherit",
+                      display: "flex", alignItems: "center", gap: "4px",
+                    }}
+                  >
+                    <Eye size={11} aria-hidden="true" /> Peek at themes
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setRevealed("full")}
+                  style={{
+                    padding: "4px 10px", fontSize: "11px",
+                    border: "none", borderRadius: "var(--radius)",
+                    background: "var(--primary)", color: "var(--primary-foreground)",
+                    cursor: "pointer", fontFamily: "inherit",
+                    display: "flex", alignItems: "center", gap: "4px",
+                  }}
+                >
+                  Read entry
+                </button>
+              </div>
             </div>
-          ) : (
-            <p style={{
-              fontSize: "13px", color: "var(--foreground)",
-              lineHeight: 1.65, margin: 0,
-              display: "-webkit-box",
-              WebkitLineClamp: 4,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              fontFamily: "var(--font-serif)",
+          )}
+
+          {entry.spoilered && revealed === "tags" && (
+            <div style={{
+              background: "var(--muted)", borderRadius: "var(--radius)",
+              padding: "0.75rem", display: "flex", flexDirection: "column", gap: "10px",
             }}>
-              {entry.content}
-            </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {entry.spoilerTags.map((tag) => (
+                  <span key={tag} style={{
+                    fontSize: "11px", padding: "3px 8px",
+                    background: "color-mix(in srgb, var(--primary) 12%, transparent)",
+                    color: "var(--primary)", borderRadius: "4px",
+                    fontStyle: "italic",
+                  }}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  onClick={() => setRevealed("full")}
+                  style={{
+                    padding: "4px 10px", fontSize: "11px",
+                    border: "none", borderRadius: "var(--radius)",
+                    background: "var(--primary)", color: "var(--primary-foreground)",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Read entry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRevealed(false)}
+                  style={{
+                    padding: "4px 10px", fontSize: "11px",
+                    border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+                    background: "transparent", color: "var(--muted-foreground)",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Hide
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(!entry.spoilered || revealed === "full") && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <p style={{
+                fontSize: "13px", color: "var(--foreground)",
+                lineHeight: 1.65, margin: 0,
+                display: "-webkit-box",
+                WebkitLineClamp: 4,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                fontFamily: "var(--font-serif)",
+                wordBreak: "break-word",
+                overflowWrap: "break-word",
+              }}>
+                {entry.content}
+              </p>
+              {(entry.content?.length ?? 0) > 150 && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullEntry(true)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 0,
+                    fontSize: "11px", color: "var(--primary)", textDecoration: "underline",
+                    textAlign: "left", fontFamily: "inherit", alignSelf: "flex-start",
+                  }}
+                >
+                  Read more
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
+
+      {showFullEntry && (
+        <EntryModal entry={entry} onClose={() => setShowFullEntry(false)} />
+      )}
     </article>
   );
 }

@@ -16,8 +16,12 @@ import { getPostsForAuthors } from "@/lib/gator-client";
 import { getSpoilerTags } from "@/lib/bedrock";
 export const dynamic = "force-dynamic"
 
-function isSpoiler(entryChapterEnd: number, viewerChapter: number | null): boolean {
-  return entryChapterEnd > (viewerChapter ?? 0);
+function isSpoiler(entryChapterEnd: number, viewerBookStatus: string, viewerChapter: number | null): boolean {
+  if (viewerBookStatus === "READ") {
+    return false;
+  } else {
+    return entryChapterEnd > (viewerChapter ?? 0);
+  }
 }
 
 type FriendEntry = {
@@ -112,6 +116,7 @@ export async function GET(req: NextRequest) {
             .select({
               bookId: readingProgress.bookId,
               furthestChapter: readingProgress.furthestChapter,
+              status: readingProgress.status
             })
             .from(readingProgress)
             .where(
@@ -121,16 +126,18 @@ export async function GET(req: NextRequest) {
               )
             )
           : [];
-
       const progressMap = new Map(
-        viewerProgress.map((p) => [p.bookId, p.furthestChapter])
+        viewerProgress.map((p) => [p.bookId, p])
       );
 
       // First pass: determine spoiler status for every entry
-      const withSpoilerFlag = rawEntries.map((entry) => ({
-        ...entry,
-        spoilered: isSpoiler(entry.chapterEnd, progressMap.get(entry.bookId) ?? null),
-      }));
+      const withSpoilerFlag = rawEntries.map((entry) => {
+        const prog = progressMap.get(entry.bookId);
+        return {
+          ...entry,
+          spoilered: isSpoiler(entry.chapterEnd, prog?.status ?? "TBR", prog?.furthestChapter ?? null),
+        };
+      });
 
       // Second pass: fetch AI tags for spoilered entries in parallel.
       // Non-spoilered entries resolve immediately with [].

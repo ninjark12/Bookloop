@@ -18,6 +18,8 @@ export default async function ProfilePage() {
       streakCount: users.streakCount,
       emailNotifications: users.emailNotifications,
       createdAt: users.createdAt,
+      displayName: users.displayName,
+      discriminator: users.discriminator,
     })
     .from(users)
     .where(eq(users.id, session.user.id))

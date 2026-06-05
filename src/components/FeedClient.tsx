@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Newspaper, Users, RefreshCw, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { BookOpen, Newspaper, Users, RefreshCw, ExternalLink, Eye, EyeOff, UserPlus, X, Search, Check } from "lucide-react";
 
 type FriendEntry = {
   id: string;
@@ -30,11 +30,31 @@ type AuthorPost = {
   authorName: string;
 };
 
+type PendingRequest = {
+  id: string;
+  createdAt: string;
+  sender: {
+    id: string;
+    name: string | null;
+    displayName: string | null;
+    discriminator: string | null;
+    image: string | null;
+  };
+};
+
+type SearchedUser = {
+  id: string;
+  name: string | null;
+  displayName: string | null;
+  discriminator: string | null;
+  image: string | null;
+};
+
 type FeedData = {
   friends: FriendEntry[];
   authorNews: AuthorPost[];
   authorNewsPages: number;
-  followingCount: number;
+  friendsCount: number;
   followedAuthorsCount: number;
 };
 
@@ -296,6 +316,18 @@ export default function FeedClient() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(0);
 
+  // Pending friend requests — fetched separately so they can refresh independently
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [requestActionId, setRequestActionId] = useState<string | null>(null);
+
+  // Add Friend modal state
+  const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResult, setSearchResult] = useState<SearchedUser | null | "not-found">(null);
+  const [searching, setSearching] = useState(false);
+  const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [sendError, setSendError] = useState("");
+
   const fetchFeed = useCallback(async (p = 0) => {
     setLoading(true);
     setError("");
@@ -312,7 +344,83 @@ export default function FeedClient() {
     }
   }, []);
 
-  useEffect(() => { fetchFeed(0); }, [fetchFeed]);
+  const fetchPendingRequests = useCallback(async () => {
+    try {
+      const res = await fetch("/api/friends/requests");
+      if (!res.ok) return;
+      const json = await res.json();
+      setPendingRequests(json.requests ?? []);
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFeed(0);
+    fetchPendingRequests();
+  }, [fetchFeed, fetchPendingRequests]);
+
+  async function handleRequestAction(requestId: string, action: "accept" | "decline") {
+    setRequestActionId(requestId);
+    try {
+      const res = await fetch(`/api/friends/request/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) return;
+      // Remove from pending list immediately (optimistic)
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      // If accepted, re-fetch feed so their entries now appear
+      if (action === "accept") fetchFeed(0);
+    } finally {
+      setRequestActionId(null);
+    }
+  }
+
+  async function handleSearch() {
+    setSearchResult(null);
+    setSendStatus("idle");
+    setSendError("");
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      if (!res.ok) { setSearchResult("not-found"); return; }
+      const json = await res.json();
+      setSearchResult(json.user ?? "not-found");
+    } catch {
+      setSearchResult("not-found");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleSendRequest(receiverId: string) {
+    setSendStatus("sending");
+    setSendError("");
+    try {
+      const res = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setSendStatus("error"); setSendError(json.error ?? "Failed"); return; }
+      setSendStatus("sent");
+    } catch {
+      setSendStatus("error");
+      setSendError("Something went wrong. Please try again.");
+    }
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setSearchQuery("");
+    setSearchResult(null);
+    setSendStatus("idle");
+    setSendError("");
+  }
 
   return (
     <div style={{ maxWidth: "680px", margin: "0 auto", padding: "2rem 1.5rem" }}>
@@ -325,27 +433,43 @@ export default function FeedClient() {
         }}>
           Feed
         </h1>
-        <button
-          type="button"
-          aria-label="Refresh feed"
-          onClick={() => fetchFeed(page)}
-          disabled={loading}
-          style={{
-            background: "none", border: "0.5px solid var(--border)",
-            borderRadius: "var(--radius)", padding: "6px 8px",
-            cursor: loading ? "not-allowed" : "pointer",
-            color: "var(--muted-foreground)",
-            display: "flex", alignItems: "center",
-            opacity: loading ? 0.5 : 1,
-            transition: "opacity 0.15s",
-          }}
-        >
-          <RefreshCw
-            size={14}
-            aria-hidden="true"
-            style={{ animation: loading ? "spin 1s linear infinite" : "none" }}
-          />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={() => setShowModal(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "6px 12px", fontSize: "13px",
+              border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+              background: "var(--card)", color: "var(--foreground)",
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <UserPlus size={13} aria-hidden="true" />
+            Add Friend
+          </button>
+          <button
+            type="button"
+            aria-label="Refresh feed"
+            onClick={() => fetchFeed(page)}
+            disabled={loading}
+            style={{
+              background: "none", border: "0.5px solid var(--border)",
+              borderRadius: "var(--radius)", padding: "6px 8px",
+              cursor: loading ? "not-allowed" : "pointer",
+              color: "var(--muted-foreground)",
+              display: "flex", alignItems: "center",
+              opacity: loading ? 0.5 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
+            <RefreshCw
+              size={14}
+              aria-hidden="true"
+              style={{ animation: loading ? "spin 1s linear infinite" : "none" }}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -383,12 +507,12 @@ export default function FeedClient() {
           >
             <Icon size={13} aria-hidden="true" />
             {label}
-            {id === "friends" && data && data.followingCount > 0 && (
+            {id === "friends" && data && data.friendsCount > 0 && (
               <span style={{
                 fontSize: "10px", background: "color-mix(in srgb, var(--primary) 15%, transparent)",
                 color: "var(--primary)", borderRadius: "10px", padding: "1px 6px",
               }}>
-                {data.followingCount}
+                {data.friendsCount}
               </span>
             )}
           </button>
@@ -413,6 +537,82 @@ export default function FeedClient() {
               opacity: 0.5,
               animation: "pulse 1.5s ease-in-out infinite",
             }} />
+          ))}
+        </div>
+      )}
+
+      {/* Pending friend requests panel — shown on friends tab whenever there are pending requests */}
+      {tab === "friends" && pendingRequests.length > 0 && (
+        <div style={{
+          background: "color-mix(in srgb, var(--primary) 6%, var(--card))",
+          border: "0.5px solid color-mix(in srgb, var(--primary) 25%, var(--border))",
+          borderRadius: "var(--radius)",
+          padding: "1rem",
+          marginBottom: "1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.75rem",
+        }}>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Friend requests ({pendingRequests.length})
+          </p>
+          {pendingRequests.map((req) => (
+            <div key={req.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                <div style={{
+                  width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
+                  background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "11px", fontWeight: 700, color: "var(--primary)",
+                }}>
+                  {(req.sender.name ?? "?")[0].toUpperCase()}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--foreground)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {req.sender.name ?? "Reader"}
+                  </p>
+                  {req.sender.displayName && req.sender.discriminator && (
+                    <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0, fontFamily: "var(--font-display)" }}>
+                      {req.sender.displayName}#{req.sender.discriminator}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                <button
+                  type="button"
+                  disabled={requestActionId === req.id}
+                  onClick={() => handleRequestAction(req.id, "accept")}
+                  aria-label={`Accept request from ${req.sender.name}`}
+                  style={{
+                    padding: "5px 10px", fontSize: "12px",
+                    border: "none", borderRadius: "var(--radius)",
+                    background: "var(--primary)", color: "var(--primary-foreground)",
+                    cursor: requestActionId === req.id ? "wait" : "pointer",
+                    opacity: requestActionId === req.id ? 0.6 : 1,
+                    fontFamily: "inherit", display: "flex", alignItems: "center", gap: "4px",
+                  }}
+                >
+                  <Check size={11} aria-hidden="true" /> Accept
+                </button>
+                <button
+                  type="button"
+                  disabled={requestActionId === req.id}
+                  onClick={() => handleRequestAction(req.id, "decline")}
+                  aria-label={`Decline request from ${req.sender.name}`}
+                  style={{
+                    padding: "5px 10px", fontSize: "12px",
+                    border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+                    background: "transparent", color: "var(--muted-foreground)",
+                    cursor: requestActionId === req.id ? "wait" : "pointer",
+                    opacity: requestActionId === req.id ? 0.6 : 1,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -477,6 +677,156 @@ export default function FeedClient() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Add Friend modal */}
+      {showModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add a friend"
+          style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.4)",
+            padding: "1rem",
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+        >
+          <div style={{
+            background: "var(--card)",
+            border: "0.5px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "1.5rem",
+            width: "100%", maxWidth: "420px",
+            display: "flex", flexDirection: "column", gap: "1rem",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
+          }}>
+            {/* Modal header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h2 style={{ fontFamily: "var(--font-display)", fontSize: "16px", fontWeight: 700, color: "var(--foreground)", margin: 0 }}>
+                Add a Friend
+              </h2>
+              <button
+                type="button"
+                onClick={closeModal}
+                aria-label="Close"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", display: "flex", padding: "4px" }}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0 }}>
+              Search by their display name and tag, e.g.{" "}
+              <span style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>Alex#4821</span>
+            </p>
+
+            {/* Search input */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchResult(null);
+                  setSendStatus("idle");
+                  setSendError("");
+                }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+                placeholder="Name#1234"
+                style={{
+                  flex: 1, padding: "8px 12px", fontSize: "14px",
+                  border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+                  background: "var(--background)", color: "var(--foreground)",
+                  fontFamily: "var(--font-display)", outline: "none",
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSearch}
+                disabled={searching || !searchQuery.trim()}
+                style={{
+                  padding: "8px 12px", fontSize: "13px",
+                  border: "none", borderRadius: "var(--radius)",
+                  background: "var(--primary)", color: "var(--primary-foreground)",
+                  cursor: searching ? "wait" : "pointer",
+                  opacity: searching || !searchQuery.trim() ? 0.6 : 1,
+                  display: "flex", alignItems: "center", gap: "4px",
+                  fontFamily: "inherit",
+                }}
+              >
+                <Search size={13} aria-hidden="true" />
+                {searching ? "..." : "Search"}
+              </button>
+            </div>
+
+            {/* Search result */}
+            {searchResult === "not-found" && (
+              <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0 }}>
+                No user found with that tag.
+              </p>
+            )}
+
+            {searchResult && searchResult !== "not-found" && (
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "0.75rem", gap: "0.75rem",
+                background: "var(--background)", border: "0.5px solid var(--border)",
+                borderRadius: "var(--radius)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                  <div style={{
+                    width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0,
+                    background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "12px", fontWeight: 700, color: "var(--primary)",
+                  }}>
+                    {(searchResult.name ?? "?")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
+                      {searchResult.name ?? "Reader"}
+                    </p>
+                    {searchResult.displayName && searchResult.discriminator && (
+                      <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0, fontFamily: "var(--font-display)" }}>
+                        {searchResult.displayName}#{searchResult.discriminator}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {sendStatus === "sent" ? (
+                  <span style={{ fontSize: "12px", color: "var(--primary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <Check size={13} aria-hidden="true" /> Sent
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={sendStatus === "sending"}
+                    onClick={() => handleSendRequest(searchResult.id)}
+                    style={{
+                      padding: "6px 14px", fontSize: "13px",
+                      border: "none", borderRadius: "var(--radius)",
+                      background: "var(--primary)", color: "var(--primary-foreground)",
+                      cursor: sendStatus === "sending" ? "wait" : "pointer",
+                      opacity: sendStatus === "sending" ? 0.6 : 1,
+                      fontFamily: "inherit", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {sendStatus === "sending" ? "Sending..." : "Send Request"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {sendStatus === "error" && (
+              <p role="alert" style={{ fontSize: "12px", color: "var(--destructive)", margin: 0 }}>
+                {sendError}
+              </p>
+            )}
+          </div>
         </div>
       )}
 

@@ -23,8 +23,18 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => setMounted(true), []);
+
+  // Re-fetch pending count on every navigation so the badge stays current
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/friends/requests")
+      .then((r) => r.json())
+      .then((json) => setPendingCount(json.requests?.length ?? 0))
+      .catch(() => {});
+  }, [session, pathname]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -77,13 +87,28 @@ export default function Navbar() {
               key={href}
               href={href}
               className={cn(
-                "text-sm transition-colors hover:text-primary",
+                "text-sm transition-colors hover:text-primary relative",
                 pathname === href
                   ? "text-primary font-semibold"
                   : "text-muted-foreground"
               )}
             >
               {label}
+              {href === "/feed" && pendingCount > 0 && (
+                <span
+                  aria-label={`${pendingCount} pending friend request${pendingCount > 1 ? "s" : ""}`}
+                  style={{
+                    position: "absolute", top: "-6px", right: "-10px",
+                    minWidth: "16px", height: "16px",
+                    background: "var(--primary)", color: "var(--primary-foreground)",
+                    borderRadius: "8px", fontSize: "10px", fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 4px", lineHeight: 1,
+                  }}
+                >
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           ))}
 

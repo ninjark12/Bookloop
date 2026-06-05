@@ -7,11 +7,11 @@ import {
   readingProgress,
   books,
   users,
-  userFollows,
+  friendRequests,
   authorFollows,
   authors,
 } from "@/db/schema";
-import { and, eq, inArray, desc } from "drizzle-orm";
+import { and, eq, inArray, desc, or } from "drizzle-orm";
 import { getPostsForAuthors } from "@/lib/gator-client";
 export const dynamic = "force-dynamic"
 function isSpoiler(entryChapterEnd: number, viewerChapter: number | null): boolean {
@@ -55,12 +55,23 @@ export async function GET(req: NextRequest) {
 
     // -- 1. Friends activity --
 
-    const following = await db
-      .select({ followingId: userFollows.followingId })
-      .from(userFollows)
-      .where(eq(userFollows.followerId, userId));
+    const acceptedFriends = await db
+      .select({ senderId: friendRequests.senderId, receiverId: friendRequests.receiverId })
+      .from(friendRequests)
+      .where(
+        and(
+          eq(friendRequests.status, "ACCEPTED"),
+          or(
+            eq(friendRequests.senderId, userId),
+            eq(friendRequests.receiverId, userId)
+          )
+        )
+      );
 
-    const followingIds = following.map((f) => f.followingId);
+    // Extract the other person's ID from each accepted request
+    const followingIds = acceptedFriends.map((r) =>
+      r.senderId === userId ? r.receiverId : r.senderId
+    );
 
     let friendEntries: FriendEntry[] = [];
 
@@ -143,7 +154,7 @@ export async function GET(req: NextRequest) {
       friends: friendEntries,
       authorNews: authorNews.content,
       authorNewsPages: authorNews.totalPages,
-      followingCount: followingIds.length,
+      friendsCount: followingIds.length,
       followedAuthorsCount: followedAuthors.length,
     });
 

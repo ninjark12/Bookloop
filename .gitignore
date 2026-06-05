@@ -3,7 +3,7 @@
 # dependencies
 /node_modules
 /.pnp
-=======
+
 # Logs
 logs
 *.log
@@ -137,7 +137,7 @@ dist
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
-<<<<<<< HEAD
+!.yarn/sdks
 !.yarn/versions
 
 # testing
@@ -160,24 +160,18 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+.env.local
 
 # vercel
 .vercel
-.env.local
-node_modules/
-.next/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-=======
-!.yarn/sdks
-!.yarn/versions
 
-# Vite logs files
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
-
-./src/app/api/cron
-
+# claude
+.claude/
+CLAUDE.md
+context.md

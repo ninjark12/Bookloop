@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { User, Bell, Trash2, LogOut } from "lucide-react";
+import { User, Bell, Trash2, LogOut, Users } from "lucide-react";
 
 type Props = {
   user: {
@@ -13,6 +13,8 @@ type Props = {
     streakCount: number | null;
     emailNotifications: boolean;
     createdAt: Date | string | null;
+    displayName: string | null;
+    discriminator: string | null;
   };
 };
 
@@ -23,6 +25,17 @@ export default function ProfileClient({ user }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  // Display name state — track both what's saved (from DB) and what's in the input
+  const [savedDisplayName, setSavedDisplayName] = useState(user.displayName ?? "");
+  const [savedDiscriminator, setSavedDiscriminator] = useState(user.discriminator ?? "");
+  const [displayName, setDisplayName] = useState(user.displayName ?? "");
+  const [displayNameSaving, setDisplayNameSaving] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState("");
+  const [displayNameSuccess, setDisplayNameSuccess] = useState(false);
+
+  // Only show Save when the input differs from what's already stored
+  const isDisplayNameDirty = displayName.trim() !== savedDisplayName;
 
   async function handleNotifToggle() {
     const next = !emailNotifications;
@@ -39,6 +52,34 @@ export default function ProfileClient({ user }: Props) {
       setEmailNotifications(!next); // revert
     } finally {
       setNotifSaving(false);
+    }
+  }
+
+  async function handleSaveDisplayName() {
+    setDisplayNameSaving(true);
+    setDisplayNameError("");
+    setDisplayNameSuccess(false);
+    try {
+      const res = await fetch("/api/user/display-name", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: displayName.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setDisplayNameError(json.error ?? "Failed to save");
+        return;
+      }
+      // Update "saved" values so isDirty resets and the tag display refreshes
+      setSavedDisplayName(json.displayName);
+      setSavedDiscriminator(json.discriminator);
+      setDisplayName(json.displayName);
+      setDisplayNameSuccess(true);
+      setTimeout(() => setDisplayNameSuccess(false), 3000);
+    } catch {
+      setDisplayNameError("Something went wrong. Please try again.");
+    } finally {
+      setDisplayNameSaving(false);
     }
   }
 
@@ -209,6 +250,95 @@ export default function ProfileClient({ user }: Props) {
             }} />
           </button>
         </label>
+      </section>
+
+      {/* Friends display name */}
+      <section
+        aria-label="Friends display name"
+        style={{
+          background: "var(--card)",
+          border: "0.5px solid var(--border)",
+          borderRadius: "var(--radius)",
+          padding: "1.5rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "1rem" }}>
+          <Users size={16} aria-hidden="true" style={{ color: "var(--primary)" }} />
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: "15px", fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
+            Friends
+          </h2>
+        </div>
+
+        <p style={{ fontSize: "13px", color: "var(--muted-foreground)", marginBottom: "1rem" }}>
+          Set a display name so friends can find you. You will get a unique tag like{" "}
+          <span style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>
+            Name#1234
+          </span>
+          {" "}assigned automatically.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => {
+                setDisplayName(e.target.value);
+                setDisplayNameError("");
+                setDisplayNameSuccess(false);
+              }}
+              placeholder="Your display name"
+              maxLength={32}
+              style={{
+                flex: 1, padding: "8px 12px", fontSize: "14px",
+                border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+                background: "var(--background)", color: "var(--foreground)",
+                fontFamily: "inherit", outline: "none",
+              }}
+            />
+            {/* Only render Save when there's something new to save */}
+            {isDisplayNameDirty && (
+              <button
+                type="button"
+                onClick={handleSaveDisplayName}
+                disabled={displayNameSaving || !displayName.trim()}
+                style={{
+                  padding: "8px 16px", fontSize: "13px",
+                  border: "none", borderRadius: "var(--radius)",
+                  background: "var(--primary)", color: "var(--primary-foreground)",
+                  cursor: displayNameSaving ? "wait" : "pointer",
+                  opacity: displayNameSaving ? 0.6 : 1,
+                  fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >
+                {displayNameSaving ? "Saving..." : "Save"}
+              </button>
+            )}
+          </div>
+
+          {/* Discriminator — shown once assigned */}
+          {savedDiscriminator && (
+            <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0 }}>
+              Your tag:{" "}
+              <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, color: "var(--foreground)" }}>
+                {savedDisplayName}#{savedDiscriminator}
+              </span>
+              {" "}— share this with friends so they can add you.
+            </p>
+          )}
+
+          {displayNameError && (
+            <p role="alert" style={{ fontSize: "12px", color: "var(--destructive)", margin: 0 }}>
+              {displayNameError}
+            </p>
+          )}
+          {displayNameSuccess && (
+            <p role="status" style={{ fontSize: "12px", color: "var(--primary)", margin: 0 }}>
+              Display name saved.
+            </p>
+          )}
+        </div>
       </section>
 
       {/* Sign out */}

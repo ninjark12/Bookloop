@@ -3,7 +3,7 @@ import {
   json, uuid, uniqueIndex, index, pgEnum
 } from "drizzle-orm/pg-core"
 
-//  Enums 
+//  Enums
 
 export const journalEntryScopeEnum = pgEnum("journal_entry_scope", [
   "CHAPTER",
@@ -16,6 +16,12 @@ export const readingStatusEnum = pgEnum("reading_status", [
   "READ",
   "TBR",
   "DNF",
+])
+
+export const friendRequestStatusEnum = pgEnum("friend_request_status", [
+  "PENDING",
+  "ACCEPTED",
+  "DECLINED",
 ])
 
 //  Better Auth tables 
@@ -33,14 +39,15 @@ export const users = pgTable("users", {
   streakCount: integer("streak_count").default(0),
   longestStreak: integer("longest_streak").default(0),
   lastEntryDate: date("last_entry_date"),
-
-  // Email notification opt-in for streak reminders
   emailNotifications: boolean("email_notifications").default(false).notNull(),
-
-  // Grace period: when set, the streak is still alive until this timestamp
-  // even if the user missed a day. Cleared when they write during the grace window.
   graceUntil: timestamp("grace_until", { precision: 6, withTimezone: true }),
-})
+  // Friends display name system (Discord-style Name#discriminator)
+  displayName: text("display_name"),
+  discriminator: text("discriminator"),
+}, (t) => [
+  // (displayName, discriminator) must be unique — NULLs are exempt (unset users)
+  uniqueIndex("users_display_name_discriminator_idx").on(t.displayName, t.discriminator),
+])
 
 export const sessions = pgTable("sessions", {
   id: text().primaryKey(),
@@ -127,19 +134,19 @@ export const journalEntries = pgTable("journal_entries", {
   index("journal_entries_user_book_idx").on(t.userId, t.bookId),
 ])
 
-//  Social follows (user -> user) 
-// Powers the friends feed. follower sees followingId's public journal entries.
+//  Friend requests (mutual friendship model)
+// Feed access is granted when a request is ACCEPTED (either direction counts).
 
-export const userFollows = pgTable("user_follows", {
+export const friendRequests = pgTable("friend_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
-  followerId: text("follower_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  followingId: text("following_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  senderId: text("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  receiverId: text("receiver_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: friendRequestStatusEnum("status").notNull().default("PENDING"),
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  // A user can only follow another user once
-  uniqueIndex("user_follows_pair_idx").on(t.followerId, t.followingId),
-  index("user_follows_follower_idx").on(t.followerId),
-  index("user_follows_following_idx").on(t.followingId),
+  uniqueIndex("friend_requests_pair_idx").on(t.senderId, t.receiverId),
+  index("friend_requests_receiver_idx").on(t.receiverId),
+  index("friend_requests_sender_idx").on(t.senderId),
 ])
 
 //  Authors 
@@ -179,7 +186,8 @@ export type NewBook = typeof books.$inferInsert
 export type ReadingProgress = typeof readingProgress.$inferSelect
 export type JournalEntry = typeof journalEntries.$inferSelect
 export type NewJournalEntry = typeof journalEntries.$inferInsert
-export type UserFollow = typeof userFollows.$inferSelect
+export type FriendRequest = typeof friendRequests.$inferSelect
+export type NewFriendRequest = typeof friendRequests.$inferInsert
 export type Author = typeof authors.$inferSelect
 export type NewAuthor = typeof authors.$inferInsert
 export type AuthorFollow = typeof authorFollows.$inferSelect

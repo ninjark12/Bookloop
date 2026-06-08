@@ -20,6 +20,7 @@ A reading journal for people who want to read more intentionally and share with 
 
 **Feed**
 - Friends' public journal entries with automatic spoiler protection — entries are hidden until you've reached that chapter
+- Spoiler tags generated via AWS Bedrock so you can take a peek at what you might get spoiled on.
 - Author news via RSS aggregation (Gator microservice integration)
 
 **Streak system**
@@ -28,12 +29,13 @@ A reading journal for people who want to read more intentionally and share with 
 - Redis-backed deduplication so streaks are only awarded once per day
 
 **Search**
-- Book search via Open Library API with write-through cache to PostgreSQL
+- Book search via Open Library API with write-through cache to PostgreSQL database hosted on Supabase
 
 **Chrome extension**
 - Detects chapter changes on MangaDex, Webtoon, MangaPlus, and Tapas
 - Prompts a journal entry modal with an 8-second delay
 - Deep-links directly into the correct book and chapter in the app
+- Extension is inpired by MAL Sync
 
 
 ## Tech stack
@@ -50,6 +52,7 @@ A reading journal for people who want to read more intentionally and share with 
 | Email | Resend |
 | Deployment | Vercel |
 | Local infra | Docker + Docker Compose |
+| Cloud | AWS Bedrock + Lambda + S3 |
 
 ---
 

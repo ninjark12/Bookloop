@@ -41,7 +41,7 @@ export default function BottomNav() {
         background: "var(--card)",
         borderTop: "0.5px solid var(--border)",
         alignItems: "stretch",
-        zIndex: 50,
+        zIndex: 40,
       }}
     >
       {items.map(({ href, label, icon: Icon }) => {

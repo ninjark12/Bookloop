@@ -25,6 +25,7 @@ const STATUS_LABELS: Record<Status, string> = {
 };
 
 const SPINE_WIDTH = 32;
+const BOTTOM_NAV_HEIGHT = 56;
 
 // One past the highest chapterEnd across non-whole-book entries, or 1 if none exist.
 function nextChapterDefault(entries: JournalEntry[], furthestChapter?: number | null): number {
@@ -72,6 +73,7 @@ export default function JournalPageClient({
   const [selectedEntry, setSelectedEntry] = useState<OptimisticEntry | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState("");
+  const [editIsPublic, setEditIsPublic] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -230,11 +232,11 @@ export default function JournalPageClient({
       const res = await fetch("/api/journal", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entryId: selectedEntry.id, content: editContent.trim() }),
+        body: JSON.stringify({ entryId: selectedEntry.id, content: editContent.trim(), isPublic: editIsPublic }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to update entry");
-      const updated = { ...selectedEntry, content: editContent.trim() };
+      const updated = { ...selectedEntry, content: editContent.trim(), isPublic: editIsPublic };
       setEntries(prev => prev.map(e => e.id === selectedEntry.id ? updated : e));
       setSelectedEntry(updated);
       setEditMode(false);
@@ -281,7 +283,7 @@ export default function JournalPageClient({
   // -- Shared: form --
   function renderForm() {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", height: "100%" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minHeight: "100%" }}>
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap" }}>
           {scope !== "WHOLE_BOOK" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -361,7 +363,7 @@ export default function JournalPageClient({
   function renderEntryDetail() {
     if (!selectedEntry) return null;
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", height: "100%" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minHeight: "100%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--primary)", background: "color-mix(in srgb, var(--primary) 12%, transparent)", borderRadius: "4px", padding: "2px 6px" }}>
@@ -377,7 +379,7 @@ export default function JournalPageClient({
             </button>
             {!editMode && !confirmDelete && (
               <button type="button" aria-label="Edit this entry"
-                onClick={() => { setEditContent(selectedEntry.content ?? ""); setEditMode(true); }}
+                onClick={() => { setEditContent(selectedEntry.content ?? ""); setEditIsPublic(selectedEntry.isPublic ?? false); setEditMode(true); }}
                 style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", fontSize: "11px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: "var(--muted-foreground)", cursor: "pointer" }}>
                 <Pencil size={11} aria-hidden="true" /> Edit
               </button>
@@ -424,6 +426,10 @@ export default function JournalPageClient({
               style={{ flex: 1, width: "100%", minHeight: "200px", padding: "12px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "14px", lineHeight: 1.7, resize: "none", outline: "none", fontFamily: "var(--font-serif)" }}
             />
             {editError && <p role="alert" style={{ fontSize: "12px", color: "var(--destructive)", margin: 0 }}>{editError}</p>}
+            <label htmlFor="edit-entry-public" style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+              <input id="edit-entry-public" type="checkbox" checked={editIsPublic} onChange={(e) => setEditIsPublic(e.target.checked)} />
+              <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Public</span>
+            </label>
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexShrink: 0 }}>
               <button type="button" aria-label="Cancel edit" onClick={() => { setEditMode(false); setEditError(""); }}
                 style={{ padding: "6px 14px", fontSize: "12px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: "var(--muted-foreground)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -446,11 +452,15 @@ export default function JournalPageClient({
     const progressLabel = formatProgress(progress?.furthestChapter);
     return (
       <div style={{ background: "var(--card)", borderBottom: "0.5px solid var(--border)", padding: "0.75rem 1.25rem", display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
-        <button type="button" onClick={() => router.push("/dashboard")} aria-label="Back to Dashboard"
-          style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--muted-foreground)", fontSize: "12px", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-          <ChevronLeft size={14} aria-hidden="true" /> Dashboard
-        </button>
-        <div style={{ width: "0.5px", height: "16px", background: "var(--border)" }} aria-hidden="true" />
+        {!isMobile && (
+          <>
+            <button type="button" onClick={() => router.push("/dashboard")} aria-label="Back to Dashboard"
+              style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--muted-foreground)", fontSize: "12px", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <ChevronLeft size={14} aria-hidden="true" /> Dashboard
+            </button>
+            <div style={{ width: "0.5px", height: "16px", background: "var(--border)" }} aria-hidden="true" />
+          </>
+        )}
         {book.coverUrl && (
           <img src={book.coverUrl} alt={`Cover of ${book.title}`}
             style={{ width: "28px", height: "40px", objectFit: "cover", borderRadius: "2px" }} />
@@ -521,7 +531,7 @@ export default function JournalPageClient({
   const showMobileModal = isMobile && (showForm || !!selectedEntry);
 
   return (
-    <div style={{ position: "fixed", inset: 0, top: "64px", display: "flex", flexDirection: "column", height: "calc(100dvh - 64px )" }}>
+    <div style={{ position: "fixed", inset: 0, top: "64px", display: "flex", flexDirection: "column", height: `calc(100dvh - 64px - ${BOTTOM_NAV_HEIGHT}px)` }}>
       {renderHeader()}
 
       {isMobile ? (
@@ -535,14 +545,14 @@ export default function JournalPageClient({
               </Button>
             </div>
             <div style={{ height: "1px", background: "var(--primary)", opacity: 0.4, flexShrink: 0 }} />
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "1rem 1.25rem" }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "1rem 1.25rem", paddingBottom: `${BOTTOM_NAV_HEIGHT + 16}px` }}>
               {renderEntriesList(setSelectedEntry)}
             </div>
           </div>
 
           {showMobileModal && (
             <div role="dialog" aria-modal="true" aria-label={showForm ? "New journal entry" : "Journal entry detail"}
-              style={{ position: "fixed", inset: 0, top: "64px", zIndex: 50, display: "flex", flexDirection: "column", background: "var(--card)", height: "calc(100dvh - 64px)" }}>
+              style={{ position: "fixed", inset: 0, top: "64px", zIndex: 50, display: "flex", flexDirection: "column", background: "var(--card)", height: `calc(100dvh - 64px - ${BOTTOM_NAV_HEIGHT}px)` }}>
               <div style={{ padding: "1rem 1.25rem", borderBottom: "0.5px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 600, color: "var(--primary)", margin: 0 }}>
                   {showForm ? "New entry" : "Entry"}
@@ -556,7 +566,7 @@ export default function JournalPageClient({
                   <X size={16} aria-hidden="true" />
                 </button>
               </div>
-              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "1rem 1.25rem" }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "1rem 1.25rem", paddingBottom: `${BOTTOM_NAV_HEIGHT + 16}px` }}>
                 {showForm ? renderForm() : renderEntryDetail()}
               </div>
             </div>

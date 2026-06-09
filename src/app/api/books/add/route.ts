@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/db"
 import { books, readingProgress } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { eq, InferSelectModel } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const data = result.data
 
   // 1. Find or create the book in our DB
-  let book
+  let book: InferSelectModel<typeof books> | undefined
 
   if (data.bookId && data.bookId.length > 0) {
     // Already in our DB — just look it up

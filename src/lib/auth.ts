@@ -2,6 +2,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
 import { sessions, users, accounts, verifications } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { assignDiscriminator, sanitizeDisplayName } from "@/lib/assign-discriminator";
 import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY
@@ -40,4 +42,23 @@ export const auth = betterAuth({
     },
   },
   secret: process.env.BETTER_AUTH_SECRET,
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          try {
+            const displayName = sanitizeDisplayName(user.name ?? "");
+            const discriminator = await assignDiscriminator(displayName, user.id);
+            if (discriminator) {
+              await db.update(users)
+                .set({ displayName, discriminator })
+                .where(eq(users.id, user.id));
+            }
+          } catch {
+            // Non-fatal: user is created, tag assignment failure shouldn't block sign-up.
+          }
+        },
+      },
+    },
+  },
 });

@@ -133,11 +133,13 @@ export async function PATCH(req: NextRequest) {
 
     let entryId: string;
     let content: string;
+    let isPublic: boolean | undefined;
 
     try {
       const body = await req.json();
       entryId = body.entryId;
       content = body.content;
+      isPublic = typeof body.isPublic === "boolean" ? body.isPublic : undefined;
     } catch {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
@@ -153,7 +155,11 @@ export async function PATCH(req: NextRequest) {
 
     const [updated] = await db
       .update(journalEntries)
-      .set({ content: content.trim(), updatedAt: new Date() })
+      .set({
+        content: content.trim(),
+        updatedAt: new Date(),
+        ...(isPublic !== undefined && { isPublic }),
+      })
       .where(
         and(
           eq(journalEntries.id, entryId),

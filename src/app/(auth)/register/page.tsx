@@ -44,14 +44,22 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
 
-    const { error } = await authClient.signIn.social({
+    const res = await authClient.signIn.social({
       provider: "google",
       callbackURL: "/dashboard",
     });
 
-    if (error) {
-      setError(error.message ?? "Something went wrong");
+    if (res?.error) {
+      setError(res.error.message ?? "Something went wrong");
       setLoading(false);
+      return;
+    }
+
+    // Mobile browsers sometimes don't follow the auto-redirect.
+    // Explicitly navigate when the server returns a URL.
+    const redirectUrl = (res as unknown as { data?: { url?: string } } | null)?.data?.url;
+    if (redirectUrl) {
+      window.location.href = redirectUrl;
       return;
     }
 

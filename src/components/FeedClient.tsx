@@ -499,10 +499,11 @@ export default function FeedClient() {
   // Add Friend modal state
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResult, setSearchResult] = useState<SearchedUser | null | "not-found">(null);
+  const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
+  const [searchError, setSearchError] = useState("");
   const [searching, setSearching] = useState(false);
-  const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [sendError, setSendError] = useState("");
+  const [sendStatus, setSendStatus] = useState<Record<string, "idle" | "sending" | "sent" | "error">>({});
+  const [sendError, setSendError] = useState<Record<string, string>>({});
 
   const fetchFeed = useCallback(async (p = 0) => {
     setLoading(true);
@@ -555,26 +556,28 @@ export default function FeedClient() {
   }
 
   async function handleSearch() {
-    setSearchResult(null);
-    setSendStatus("idle");
-    setSendError("");
+    setSearchResults([]);
+    setSearchError("");
+    setSendStatus({});
+    setSendError({});
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
       const res = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      if (!res.ok) { setSearchResult("not-found"); return; }
       const json = await res.json();
-      setSearchResult(json.user ?? "not-found");
+      if (!res.ok) { setSearchError(json.error ?? "No users found"); return; }
+      setSearchResults(json.users ?? []);
+      if ((json.users ?? []).length === 0) setSearchError("No users found with that name or tag.");
     } catch {
-      setSearchResult("not-found");
+      setSearchError("Something went wrong. Please try again.");
     } finally {
       setSearching(false);
     }
   }
 
   async function handleSendRequest(receiverId: string) {
-    setSendStatus("sending");
-    setSendError("");
+    setSendStatus((prev) => ({ ...prev, [receiverId]: "sending" }));
+    setSendError((prev) => ({ ...prev, [receiverId]: "" }));
     try {
       const res = await fetch("/api/friends/request", {
         method: "POST",
@@ -582,20 +585,25 @@ export default function FeedClient() {
         body: JSON.stringify({ receiverId }),
       });
       const json = await res.json();
-      if (!res.ok) { setSendStatus("error"); setSendError(json.error ?? "Failed"); return; }
-      setSendStatus("sent");
+      if (!res.ok) {
+        setSendStatus((prev) => ({ ...prev, [receiverId]: "error" }));
+        setSendError((prev) => ({ ...prev, [receiverId]: json.error ?? "Failed" }));
+        return;
+      }
+      setSendStatus((prev) => ({ ...prev, [receiverId]: "sent" }));
     } catch {
-      setSendStatus("error");
-      setSendError("Something went wrong. Please try again.");
+      setSendStatus((prev) => ({ ...prev, [receiverId]: "error" }));
+      setSendError((prev) => ({ ...prev, [receiverId]: "Something went wrong. Please try again." }));
     }
   }
 
   function closeModal() {
     setShowModal(false);
     setSearchQuery("");
-    setSearchResult(null);
-    setSendStatus("idle");
-    setSendError("");
+    setSearchResults([]);
+    setSearchError("");
+    setSendStatus({});
+    setSendError({});
   }
 
   return (
@@ -895,8 +903,15 @@ export default function FeedClient() {
             </div>
 
             <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0 }}>
-              Search by their display name and tag, e.g.{" "}
-              <span style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>Alex#4821</span>
+              Search by name (e.g. <span style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>Alex</span>)
+              or by exact tag (e.g. <span style={{ fontFamily: "var(--font-display)", color: "var(--foreground)" }}>Alex#4821</span>).
+            </p>
+            <p style={{ fontSize: "12px", color: "var(--muted-foreground)", margin: 0 }}>
+              Your own tag is on your{" "}
+              <a href="/profile" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+                Profile page
+              </a>
+              {" "}under "Friends" — share it so others can find you.
             </p>
 
             {/* Search input */}
@@ -906,12 +921,13 @@ export default function FeedClient() {
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setSearchResult(null);
-                  setSendStatus("idle");
-                  setSendError("");
+                  setSearchResults([]);
+                  setSearchError("");
+                  setSendStatus({});
+                  setSendError({});
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
-                placeholder="Name#1234"
+                placeholder="Name or Name#1234"
                 style={{
                   flex: 1, padding: "8px 12px", fontSize: "14px",
                   border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
@@ -938,69 +954,78 @@ export default function FeedClient() {
               </button>
             </div>
 
-            {/* Search result */}
-            {searchResult === "not-found" && (
+            {/* Search error */}
+            {searchError && (
               <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0 }}>
-                No user found with that tag.
+                {searchError}
               </p>
             )}
 
-            {searchResult && searchResult !== "not-found" && (
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "0.75rem", gap: "0.75rem",
-                background: "var(--background)", border: "0.5px solid var(--border)",
-                borderRadius: "var(--radius)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                  <div style={{
-                    width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0,
-                    background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "12px", fontWeight: 700, color: "var(--primary)",
-                  }}>
-                    {(searchResult.name ?? "?")[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
-                      {searchResult.name ?? "Reader"}
-                    </p>
-                    {searchResult.displayName && searchResult.discriminator && (
-                      <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0, fontFamily: "var(--font-display)" }}>
-                        {searchResult.displayName}#{searchResult.discriminator}
-                      </p>
-                    )}
-                  </div>
-                </div>
+            {/* Search results */}
+            {searchResults.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {searchResults.map((user) => {
+                  const status = sendStatus[user.id] ?? "idle";
+                  return (
+                    <div key={user.id} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "0.75rem", gap: "0.75rem",
+                      background: "var(--background)", border: "0.5px solid var(--border)",
+                      borderRadius: "var(--radius)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                        <div style={{
+                          width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0,
+                          background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: "12px", fontWeight: 700, color: "var(--primary)",
+                        }}>
+                          {(user.name ?? "?")[0].toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--foreground)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {user.name ?? "Reader"}
+                          </p>
+                          {user.displayName && user.discriminator && (
+                            <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0, fontFamily: "var(--font-display)" }}>
+                              {user.displayName}#{user.discriminator}
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-                {sendStatus === "sent" ? (
-                  <span style={{ fontSize: "12px", color: "var(--primary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <Check size={13} aria-hidden="true" /> Sent
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={sendStatus === "sending"}
-                    onClick={() => handleSendRequest(searchResult.id)}
-                    style={{
-                      padding: "6px 14px", fontSize: "13px",
-                      border: "none", borderRadius: "var(--radius)",
-                      background: "var(--primary)", color: "var(--primary-foreground)",
-                      cursor: sendStatus === "sending" ? "wait" : "pointer",
-                      opacity: sendStatus === "sending" ? 0.6 : 1,
-                      fontFamily: "inherit", whiteSpace: "nowrap",
-                    }}
-                  >
-                    {sendStatus === "sending" ? "Sending..." : "Send Request"}
-                  </button>
-                )}
+                      <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                        {status === "sent" ? (
+                          <span style={{ fontSize: "12px", color: "var(--primary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                            <Check size={13} aria-hidden="true" /> Sent
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={status === "sending"}
+                            onClick={() => handleSendRequest(user.id)}
+                            style={{
+                              padding: "6px 14px", fontSize: "13px",
+                              border: "none", borderRadius: "var(--radius)",
+                              background: "var(--primary)", color: "var(--primary-foreground)",
+                              cursor: status === "sending" ? "wait" : "pointer",
+                              opacity: status === "sending" ? 0.6 : 1,
+                              fontFamily: "inherit", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {status === "sending" ? "Sending..." : "Add"}
+                          </button>
+                        )}
+                        {status === "error" && sendError[user.id] && (
+                          <p role="alert" style={{ fontSize: "11px", color: "var(--destructive)", margin: 0 }}>
+                            {sendError[user.id]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-
-            {sendStatus === "error" && (
-              <p role="alert" style={{ fontSize: "12px", color: "var(--destructive)", margin: 0 }}>
-                {sendError}
-              </p>
             )}
           </div>
         </div>

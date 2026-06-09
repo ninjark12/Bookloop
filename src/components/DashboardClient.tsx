@@ -35,7 +35,7 @@ type Book = {
   addedAt?: string | null;
 };
 
-type Props = { books: Book[]; streak: number };
+type Props = { books: Book[]; streak: number; userName?: string | null };
 
 type PageItem = { type: "book"; book: Book } | { type: "add" };
 
@@ -353,11 +353,12 @@ function PageGrid({ items, booksVisible, padding = "1rem 2rem", onNavigate, onSt
 
 // -- Notebook ----------------------------------------------------------------
 
-function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick }: {
+function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick, userName }: {
   isMobile: boolean;
   notebookRef: React.RefObject<HTMLButtonElement | null>;
   bookSpreadRef: React.RefObject<HTMLDivElement | null>;
   onClick: () => void;
+  userName?: string | null;
 }) {
   const w = isMobile ? "min(300px,88vw)" : "min(520px,75vw)";
   const h = isMobile ? "min(440px,72vh)" : "min(760px,78vh)";
@@ -376,7 +377,9 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick }: {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "clamp(1.25rem,3vh,3rem) clamp(1rem,2.5vw,2.5rem) 1rem clamp(2rem,5vw,5rem)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "clamp(6px,1.5vw,14px)", marginBottom: "clamp(4px,1.5vh,14px)" }}>
                 <BookOpen size={isMobile ? 18 : 22} aria-hidden="true" style={{ color: "var(--primary)", flexShrink: 0 }} />
-                <span style={{ fontSize: "clamp(15px,2.5vw,26px)", fontWeight: 700, color: "var(--primary)", fontFamily: "var(--font-display)" }}>Bookloop</span>
+                <span style={{ fontSize: "clamp(15px,2.5vw,26px)", fontWeight: 700, color: "var(--primary)", fontFamily: "var(--font-display)" }}>
+                  {userName ? `${userName}'s` : "Bookloop"}
+                </span>
               </div>
               <p style={{ fontSize: "clamp(9px,1.5vw,14px)", color: "var(--muted-foreground)", marginBottom: "clamp(14px,4vh,52px)" }}>Reading journal</p>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "clamp(8px,2.5vh,26px)" }}>
@@ -448,7 +451,7 @@ function PageNav({ currentPage, totalPages, onPrev, onNext, booksVisible }: {
 
 // -- Main --------------------------------------------------------------------
 
-export default function DashboardClient({ books: initialBooks, streak }: Props) {
+export default function DashboardClient({ books: initialBooks, streak, userName }: Props) {
   const router = useRouter();
   const isMobile = useIsMobile();
 
@@ -546,7 +549,7 @@ export default function DashboardClient({ books: initialBooks, streak }: Props) 
       )}
 
       {!isOpen && (
-        <Notebook isMobile={isMobile} notebookRef={notebookRef} bookSpreadRef={bookSpreadRef} onClick={handleNotebookClick} />
+        <Notebook isMobile={isMobile} notebookRef={notebookRef} bookSpreadRef={bookSpreadRef} onClick={handleNotebookClick} userName={userName} />
       )}
 
       {isOpen && (isMobile ? (

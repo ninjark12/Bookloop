@@ -3,6 +3,7 @@ import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
+import { assignDiscriminator } from "@/lib/assign-discriminator";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest) {
@@ -42,36 +43,14 @@ export async function PATCH(req: NextRequest) {
 
     if (!discriminator) {
       // First time — assign a discriminator for this display name.
-      // Fetch only the discriminators already taken under this name (not all users).
-      const takenRows = await db
-        .select({ discriminator: users.discriminator })
-        .from(users)
-        .where(and(eq(users.displayName, displayName), ne(users.id, userId)));
-
-      const taken = new Set(takenRows.map((r) => r.discriminator).filter(Boolean));
-
-      // Try up to 20 random candidates first — avoids a full scan in the common case.
-      let found: string | null = null;
-      for (let i = 0; i < 20; i++) {
-        const candidate = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
-        if (!taken.has(candidate)) { found = candidate; break; }
-      }
-
-      // Fallback: if random picks all collided, scan sequentially.
+      const found = await assignDiscriminator(displayName, userId);
       if (!found) {
-        if (taken.size >= 10000) {
-          return NextResponse.json(
-            { error: "This display name is fully taken. Please choose a different one." },
-            { status: 409 }
-          );
-        }
-        for (let n = 0; n < 10000; n++) {
-          const candidate = String(n).padStart(4, "0");
-          if (!taken.has(candidate)) { found = candidate; break; }
-        }
+        return NextResponse.json(
+          { error: "This display name is fully taken. Please choose a different one." },
+          { status: 409 }
+        );
       }
-
-      discriminator = found!;
+      discriminator = found;
     } else {
       // Discriminator already assigned — just check the new name doesn't conflict
       // with a different user who already holds (newName, sameDiscriminator).

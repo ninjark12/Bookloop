@@ -36,5 +36,5 @@ export default async function Dashboard() {
 
   const streak = userData?.streakCount ?? 0
 
-  return <DashboardClient books={userBooks} streak={streak} />
+  return <DashboardClient books={userBooks} streak={streak} userName={session.user.name} />
 }

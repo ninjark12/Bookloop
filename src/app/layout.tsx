@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import BottomNav from "@/components/layout/BottomNav";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "next-themes";
 
@@ -31,8 +32,9 @@ export default function RootLayout({
       <body className="antialiased bg-background text-foreground min-h-screen flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <main className="flex-1 pt-16 pb-14 md:pb-0">{children}</main>
+          <div className="hidden md:block"><Footer /></div>
+          <BottomNav />
         </ThemeProvider>
         <Analytics />
       </body>

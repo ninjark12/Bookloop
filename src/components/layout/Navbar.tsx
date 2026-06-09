@@ -66,7 +66,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="border-b border-border bg-card/80 backdrop-blur-sm fixed top-0 left-0 right-0 z-50">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
 
         {/* Logo */}
@@ -81,13 +81,13 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-6">
-          {/* Nav links */}
+          {/* Nav links — hidden on mobile, shown on md+ */}
           {links.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
               className={cn(
-                "text-sm transition-colors hover:text-primary relative",
+                "hidden md:block text-sm transition-colors hover:text-primary relative",
                 pathname === href
                   ? "text-primary font-semibold"
                   : "text-muted-foreground"

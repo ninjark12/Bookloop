@@ -363,7 +363,7 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick }: {
   const h = isMobile ? "min(440px,72vh)" : "min(760px,78vh)";
   return (
     <>
-      <div ref={bookSpreadRef} style={{ position: "fixed", inset: 0, top: "64px", zIndex: 1, opacity: 0, background: "var(--card)" }} />
+      <div ref={bookSpreadRef} style={{ position: "fixed", top: "64px", bottom: isMobile ? "56px" : 0, left: 0, right: 0, zIndex: 1, opacity: 0, background: "var(--card)" }} />
       <div style={{ position: "fixed", inset: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
         <div style={{ position: "relative", width: w, height: h }}>
           <button type="button" ref={notebookRef} onClick={onClick} aria-label="Open your reading journal"
@@ -552,7 +552,7 @@ export default function DashboardClient({ books: initialBooks, streak }: Props) 
       {isOpen && (isMobile ? (
 
         // -- Mobile ----------------------------------------------------------
-        <div style={{ position: "fixed", inset: 0, top: "64px", display: "flex", flexDirection: "column", background: "var(--card)" }}>
+        <div style={{ position: "fixed", top: "64px", bottom: "56px", left: 0, right: 0, display: "flex", flexDirection: "column", background: "var(--card)" }}>
           <TallyBand streak={streak} refs={tallyRefs} />
           <div style={{ padding: "0.75rem 1.25rem 0.5rem", flexShrink: 0, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", fontWeight: 700, color: "var(--primary)", margin: 0 }}>My reading list</h1>

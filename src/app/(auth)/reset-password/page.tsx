@@ -7,48 +7,38 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Eye, EyeOff } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function getToken(): string | null {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("token");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const { error } = await authClient.signIn.email({
-      email,
-      password,
-      callbackURL: "/dashboard",
-    });
-
-    if (error) {
-      setError(error.message ?? "Invalid email or password");
+    const token = getToken();
+    if (!token) {
+      setError("Invalid or missing reset token. Please request a new password reset link.");
       setLoading(false);
       return;
     }
 
-    router.push("/dashboard");
-  }
-
-  async function handleSocialSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    const { error } = await authClient.signIn.social({
-      provider: "google",
-      callbackURL: "/dashboard",
+    const { error } = await authClient.resetPassword({
+      newPassword,
+      token,
     });
 
     if (error) {
-      setError(error.message ?? "Something went wrong");
+      setError(error.message ?? "Something went wrong. The link may have expired.");
       setLoading(false);
       return;
     }
@@ -71,48 +61,32 @@ export default function LoginPage() {
             </span>
           </div>
           <p className="text-muted-foreground text-sm">
-            Welcome back — pick up where you left off
+            Choose a new password for your account
           </p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle style={{ fontFamily: "var(--font-display)" }}>
-              Sign in
+              Reset password
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
               <div className="flex flex-col gap-1">
-                <label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  className="border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor="password" className="text-sm font-medium">
-                  Password
+                <label htmlFor="new-password" className="text-sm font-medium">
+                  New password
                 </label>
                 <div style={{ position: "relative" }}>
                   <input
-                    id="password"
+                    id="new-password"
                     type={showPassword ? "text" : "password"}
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Your password"
-                    autoComplete="current-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
                     className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                     style={{ paddingRight: "2.5rem" }}
                   />
@@ -148,31 +122,16 @@ export default function LoginPage() {
               )}
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
+                {loading ? "Saving..." : "Set new password"}
               </Button>
 
             </form>
 
             <p className="text-center text-sm text-muted-foreground mt-4">
-              Forgot your password?{" "}
-              <Link href="/forgot-password" className="text-primary hover:underline">
-                Reset it
+              <Link href="/login" className="text-primary hover:underline">
+                Back to sign in
               </Link>
             </p>
-
-            <p className="text-center text-sm text-muted-foreground mt-4">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-primary hover:underline">
-                Create one
-              </Link>
-            </p>
-
-            <p className="text-center text-sm text-muted-foreground mt-4">OR</p>
-
-            <Button type="button" className="w-full mt-4" disabled={loading} onClick={handleSocialSubmit}>
-              <SiGoogle />
-              Continue with Google
-            </Button>
 
           </CardContent>
         </Card>

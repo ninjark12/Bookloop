@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/db"
 import { books } from "@/db/schema"
-import { ilike, or } from "drizzle-orm"
+import { ilike, or, InferSelectModel } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
+
 export const dynamic = "force-dynamic"
+
+interface OpenLibraryDoc {
+  key: string
+  title?: string
+  author_name?: string[]
+  cover_i?: number
+  first_publish_year?: number
+}
+
+interface OpenLibraryResponse {
+  docs: OpenLibraryDoc[]
+}
+
+type Book = InferSelectModel<typeof books>
 
 // Only call Open Library when the DB returns fewer than this many results.
 // As the catalog grows, more searches stay local.
@@ -22,7 +37,10 @@ function fieldScore(q: string, s: string): number {
 
 function rankScore(q: string, title: string, author: string): number {
   const qn = q.toLowerCase().trim()
-  return Math.max(fieldScore(qn, title.toLowerCase()), fieldScore(qn, author.toLowerCase()))
+  return Math.max(
+    fieldScore(qn, title.toLowerCase()),
+    fieldScore(qn, author.toLowerCase())
+  )
 }
 
 export async function GET(request: NextRequest) {
@@ -40,7 +58,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 1. DB search — check for the query anywhere in title or author
-  const localResults = await db
+  const localResults: Book[] = await db
     .select()
     .from(books)
     .where(
@@ -65,20 +83,20 @@ export async function GET(request: NextRequest) {
       `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=15&fields=key,title,author_name,cover_i,first_publish_year`,
       { next: { revalidate: 3600 } }
     )
-    const olData = res.ok ? await res.json() : { docs: [] }
+
+    const olData: OpenLibraryResponse = res.ok
+      ? await res.json()
+      : { docs: [] }
 
     // Don't show OL results that are already in our DB
-    const localOlKeys = new Set(localResults.map((b) => b.olKey).filter(Boolean))
-    const olResults = (olData.docs ?? [])
-      .filter((doc: { key: string }) => !localOlKeys.has(doc.key))
+    const localOlKeys = new Set(
+      localResults.map((b) => b.olKey).filter(Boolean)
+    )
+
+    const olResults = olData.docs
+      .filter((doc) => !localOlKeys.has(doc.key))
       .slice(0, 10 - localResults.length)
-      .map((doc: {
-        key: string
-        title?: string
-        author_name?: string[]
-        cover_i?: number
-        first_publish_year?: number
-      }) => ({
+      .map((doc) => ({
         id: null,
         olKey: doc.key,
         title: doc.title ?? "Unknown title",
@@ -87,10 +105,14 @@ export async function GET(request: NextRequest) {
           ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
           : null,
         publishedYear: doc.first_publish_year ?? null,
-        source: "openlibrary",
+        source: "openlibrary" as const,
       }))
 
-    olResults.sort((a, b) => rankScore(q, b.title, b.author) - rankScore(q, a.title, a.author))
+    olResults.sort(
+      (a, b) =>
+        rankScore(q, b.title, b.author) -
+        rankScore(q, a.title, a.author)
+    )
 
     return NextResponse.json({
       results: [

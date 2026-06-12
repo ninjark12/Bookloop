@@ -1,7 +1,11 @@
 import {
   pgTable, text, boolean, integer, timestamp, date,
-  json, uuid, uniqueIndex, index, pgEnum
+  json, uuid, uniqueIndex, index, pgEnum, customType
 } from "drizzle-orm/pg-core"
+
+const tsvector = customType<{ data: string }>({
+  dataType() { return "tsvector" },
+})
 
 //  Enums
 
@@ -99,6 +103,9 @@ export const books = pgTable("books", {
   publishedYear: integer("published_year"),
   toc: json("toc"),
   createdAt: timestamp("created_at", { precision: 6, withTimezone: true }).notNull().defaultNow(),
+  // Generated tsvector for full-text search — managed via hand-written migration.
+  // NEVER write this column; Postgres maintains it automatically.
+  searchVector: tsvector("search_vector"),
 })
 
 //  Reading progress 

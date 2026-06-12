@@ -1,46 +1,43 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/db"
-import { books } from "@/db/schema"
-import { ilike, or, InferSelectModel } from "drizzle-orm"
+import { sql } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
+import { searchOpenLibraryCached } from "@/lib/book-search"
 
 export const dynamic = "force-dynamic"
 
-interface OpenLibraryDoc {
-  key: string
-  title?: string
-  author_name?: string[]
-  cover_i?: number
-  first_publish_year?: number
+// ts_rank sits in [0, 1]; require a meaningful match before skipping OL.
+const LOCAL_THRESHOLD = 0.1
+
+// JS equivalent of pg_trgm's similarity(): 2-overlap / (|a| + |b|).
+// Used to re-rank OL results with the same scoring the DB uses locally.
+function trigramSimilarity(a: string, b: string): number {
+  const trigrams = (s: string) => {
+    const padded = `  ${s.toLowerCase()}  `
+    const set = new Set<string>()
+    for (let i = 0; i < padded.length - 2; i++) set.add(padded.slice(i, i + 3))
+    return set
+  }
+  const ta = trigrams(a)
+  const tb = trigrams(b)
+  let overlap = 0
+  for (const t of ta) if (tb.has(t)) overlap++
+  return (2 * overlap) / (ta.size + tb.size)
 }
 
-interface OpenLibraryResponse {
-  docs: OpenLibraryDoc[]
+function olScore(query: string, title: string, author: string): number {
+  return Math.max(trigramSimilarity(title, query), trigramSimilarity(author, query))
 }
 
-type Book = InferSelectModel<typeof books>
-
-// Only call Open Library when the DB returns fewer than this many results.
-// As the catalog grows, more searches stay local.
-const OL_THRESHOLD = 5
-
-function fieldScore(q: string, s: string): number {
-  if (!s) return 0
-  if (s === q) return 100
-  if (s.startsWith(q)) return 90
-  if (s.includes(q)) return 70
-  let i = 0
-  while (i < q.length && i < s.length && q[i] === s[i]) i++
-  return i > 0 ? (i / q.length) * 60 : 0
-}
-
-function rankScore(q: string, title: string, author: string): number {
-  const qn = q.toLowerCase().trim()
-  return Math.max(
-    fieldScore(qn, title.toLowerCase()),
-    fieldScore(qn, author.toLowerCase())
-  )
+type LocalRow = {
+  id: string
+  olKey: string | null
+  title: string
+  author: string
+  coverUrl: string | null
+  publishedYear: number | null
+  combinedScore: number
 }
 
 export async function GET(request: NextRequest) {
@@ -50,82 +47,64 @@ export async function GET(request: NextRequest) {
   }
 
   const q = request.nextUrl.searchParams.get("q")
-  if (!q || q.trim().length === 0) {
-    return NextResponse.json({ error: "q is required" }, { status: 400 })
+  if (!q || q.trim().length < 2) {
+    return NextResponse.json({ error: "q must be at least 2 characters" }, { status: 400 })
   }
   if (q.length > 200) {
     return NextResponse.json({ error: "Query too long" }, { status: 400 })
   }
 
-  // 1. DB search — check for the query anywhere in title or author
-  const localResults: Book[] = await db
-    .select()
-    .from(books)
-    .where(
-      or(
-        ilike(books.title, `%${q}%`),
-        ilike(books.author, `%${q}%`)
-      )
-    )
-    .limit(10)
-
-  // 2. Enough DB results — return without hitting Open Library
-  if (localResults.length >= OL_THRESHOLD) {
-    return NextResponse.json({
-      results: localResults.map((b) => ({ ...b, source: "local" })),
-      source: "local",
-    })
-  }
-
-  // 3. Supplement with Open Library (also handles typos via OL's own fuzzy search)
   try {
-    const res = await fetch(
-      `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=15&fields=key,title,author_name,cover_i,first_publish_year`,
-      { next: { revalidate: 3600 } }
-    )
+    // Hybrid: FTS word/stem match (@@) + trigram fuzzy match (%)
+    // websearch_to_tsquery is safe — never throws on weird input
+    const rows = await db.execute(sql`
+      SELECT
+        id::text,
+        ol_key                                                           AS "olKey",
+        title,
+        author,
+        cover_url                                                        AS "coverUrl",
+        published_year                                                   AS "publishedYear",
+        ts_rank(search_vector, websearch_to_tsquery('english', ${q}))
+          + GREATEST(similarity(title, ${q}), similarity(author, ${q})) AS "combinedScore"
+      FROM books
+      WHERE search_vector @@ websearch_to_tsquery('english', ${q})
+         OR title  % ${q}
+         OR author % ${q}
+      ORDER BY "combinedScore" DESC
+      LIMIT 20
+    `)
 
-    const olData: OpenLibraryResponse = res.ok
-      ? await res.json()
-      : { docs: [] }
+    const localRows = rows as unknown as LocalRow[]
 
-    // Don't show OL results that are already in our DB
-    const localOlKeys = new Set(
-      localResults.map((b) => b.olKey).filter(Boolean)
-    )
+    const best = localRows[0]?.combinedScore ?? 0
+    const enoughHits = localRows.length >= 3
 
-    const olResults = olData.docs
-      .filter((doc) => !localOlKeys.has(doc.key))
-      .slice(0, 10 - localResults.length)
-      .map((doc) => ({
-        id: null,
-        olKey: doc.key,
-        title: doc.title ?? "Unknown title",
-        author: doc.author_name?.[0] ?? "Unknown author",
-        coverUrl: doc.cover_i
-          ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
-          : null,
-        publishedYear: doc.first_publish_year ?? null,
-        source: "openlibrary" as const,
-      }))
+    if (best >= LOCAL_THRESHOLD && enoughHits) {
+      return NextResponse.json({
+        results: localRows.map((r) => ({ ...r, source: "local" as const })),
+        source: "local",
+      })
+    }
 
-    olResults.sort(
-      (a, b) =>
-        rankScore(q, b.title, b.author) -
-        rankScore(q, a.title, a.author)
-    )
+    // Weak local results — augment with cached OL, dedupe by ol_key
+    const ol = await searchOpenLibraryCached(q)
+    const localOlKeys = new Set(localRows.map((r) => r.olKey).filter(Boolean))
+    const olDeduped = ol
+      .filter((o) => !localOlKeys.has(o.olKey))
+      .map((o) => ({ id: null, ...o }))
+      .sort((a, b) => olScore(q, b.title, b.author) - olScore(q, a.title, a.author))
+
 
     return NextResponse.json({
       results: [
-        ...localResults.map((b) => ({ ...b, source: "local" })),
-        ...olResults,
+        ...localRows.map((r) => ({ ...r, source: "local" as const })),
+        ...olDeduped,
       ],
-      source: localResults.length > 0 ? "mixed" : "openlibrary",
+      source: localRows.length > 0 ? "mixed" : "openlibrary",
     })
-  } catch {
-    // OL failed — return whatever the DB had
-    return NextResponse.json({
-      results: localResults.map((b) => ({ ...b, source: "local" })),
-      source: "local",
-    })
+  } catch (err) {
+    console.error("[search] error:", (err as Error).message)
+    return NextResponse.json({ error: "Search failed" }, { status: 500 })
   }
 }

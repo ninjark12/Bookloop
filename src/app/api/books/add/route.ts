@@ -5,11 +5,11 @@ import { eq, InferSelectModel } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { z } from "zod"
+
 export const dynamic = "force-dynamic"
+
 const addBookSchema = z.object({
-  // Either an existing book ID from our DB
-  bookId: z.string().uuid().optional().or(z.literal(undefined)),
-  // Or Open Library data to create a new book row
+  bookId: z.string().uuid().optional(),
   olKey: z.string().optional(),
   title: z.string().min(1).max(500),
   author: z.string().min(1).max(500),
@@ -35,11 +35,11 @@ export async function POST(request: NextRequest) {
 
   const data = result.data
 
-  // 1. Find or create the book in our DB
+  // 1. Resolve the book row
   let book: InferSelectModel<typeof books> | undefined
 
-  if (data.bookId && data.bookId.length > 0) {
-    // Already in our DB — just look it up
+  if (data.bookId) {
+    // Caller already has a DB id — straight lookup
     const [existing] = await db
       .select()
       .from(books)
@@ -51,32 +51,36 @@ export async function POST(request: NextRequest) {
     }
     book = existing
   } else {
-    // From Open Library — check if we already have it by olKey
-    if (data.olKey) {
+    // OL result — write-through: insert into local catalog so it becomes
+    // searchable immediately. ON CONFLICT DO NOTHING is safe under concurrent
+    // requests: at most one INSERT wins; the loser gets an empty returning()
+    // and falls through to fetch the row the winner created.
+    const [inserted] = await db
+      .insert(books)
+      .values({
+        olKey: data.olKey ?? null,
+        title: data.title,
+        author: data.author,
+        coverUrl: data.coverUrl ?? null,
+        publishedYear: data.publishedYear ?? null,
+      })
+      .onConflictDoNothing({ target: books.olKey })
+      .returning()
+
+    if (inserted) {
+      book = inserted
+    } else if (data.olKey) {
+      // Row already existed — fetch it
       const [existing] = await db
         .select()
         .from(books)
         .where(eq(books.olKey, data.olKey))
         .limit(1)
-
-      if (existing) {
-        book = existing
-      }
+      book = existing
     }
 
-    // Still no book — create it (write-through cache)
     if (!book) {
-      const [newBook] = await db
-        .insert(books)
-        .values({
-          olKey: data.olKey ?? null,
-          title: data.title,
-          author: data.author,
-          coverUrl: data.coverUrl ?? null,
-          publishedYear: data.publishedYear ?? null,
-        })
-        .returning()
-      book = newBook
+      return NextResponse.json({ error: "Failed to resolve book" }, { status: 500 })
     }
   }
 

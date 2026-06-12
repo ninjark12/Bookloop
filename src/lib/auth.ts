@@ -14,6 +14,16 @@ const fromEmail = process.env.RESEND_FROM || "Bookloop <noreply@bookloop.sh>";
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
+  advanced: {
+    // HttpOnly blocks JS access, Secure enforces HTTPS, SameSite=Lax allows
+    // OAuth redirect callbacks while blocking cross-site sub-resource requests.
+    // Strict would break the Google OAuth return leg.
+    defaultCookieAttributes: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    },
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {

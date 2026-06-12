@@ -378,7 +378,7 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick, userName }: {
               <div style={{ display: "flex", alignItems: "center", gap: "clamp(6px,1.5vw,14px)", marginBottom: "clamp(4px,1.5vh,14px)" }}>
                 <BookOpen size={isMobile ? 18 : 22} aria-hidden="true" style={{ color: "var(--primary)", flexShrink: 0 }} />
                 <span style={{ fontSize: "clamp(15px,2.5vw,26px)", fontWeight: 700, color: "var(--primary)", fontFamily: "var(--font-display)" }}>
-                  {userName ? `${userName}'s` : "Bookloop"}
+                  {userName ? `${userName.split(" ")[0]}'s` : "Bookloop"}
                 </span>
               </div>
               <p style={{ fontSize: "clamp(9px,1.5vw,14px)", color: "var(--muted-foreground)", marginBottom: "clamp(14px,4vh,52px)" }}>Reading journal</p>

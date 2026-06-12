@@ -31,3 +31,42 @@ export const redis: Redis =
   process.env.NODE_ENV === "production"
     ? createClient()
     : (globalThis.__redis ??= createClient());
+
+// ─── Key helpers ──────────────────────────────────────────────
+export const keys = {
+  bookSearch: (query: string) =>
+    `book_search:${encodeURIComponent(query.toLowerCase().trim())}`,
+  streak: (userId: string) => `streak:${userId}`,
+  feed: (userId: string) => `feed:${userId}`,
+  rateLimit: (userId: string, endpoint: string) => `rl:${endpoint}:${userId}`,
+  progress: (userId: string, bookId: string) => `progress:${userId}:${bookId}`,
+} as const;
+
+// ─── TTL constants (seconds) ──────────────────────────────────
+export const TTL = {
+  BOOK_SEARCH: 60 * 60,    // 1 hour
+  STREAK: 60 * 60 * 25,   // 25 hours (1h grace past midnight)
+  FEED: 60,                // 1 minute
+  PROGRESS: 60 * 5,        // 5 minutes
+} as const;
+
+// ─── Typed JSON helpers (degrade gracefully on Redis outage) ──
+export async function getJSON<T>(key: string): Promise<T | null> {
+  try {
+    const raw = await redis.get(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch (err) {
+    console.error("[redis] getJSON failed:", (err as Error).message);
+    return null;
+  }
+}
+
+export async function setJSON<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
+  try {
+    const payload = JSON.stringify(value);
+    if (ttlSeconds) await redis.set(key, payload, "EX", ttlSeconds);
+    else await redis.set(key, payload);
+  } catch (err) {
+    console.error("[redis] setJSON failed:", (err as Error).message);
+  }
+}

@@ -36,6 +36,7 @@ export const redis: Redis =
 export const keys = {
   bookSearch: (query: string) =>
     `book_search:${encodeURIComponent(query.toLowerCase().trim())}`,
+  bookDesc: (olKey: string) => `book_desc:${encodeURIComponent(olKey)}`,
   streak: (userId: string) => `streak:${userId}`,
   feed: (userId: string) => `feed:${userId}`,
   rateLimit: (userId: string, endpoint: string) => `rl:${endpoint}:${userId}`,
@@ -44,10 +45,11 @@ export const keys = {
 
 // ─── TTL constants (seconds) ──────────────────────────────────
 export const TTL = {
-  BOOK_SEARCH: 60 * 60,    // 1 hour
-  STREAK: 60 * 60 * 25,   // 25 hours (1h grace past midnight)
-  FEED: 60,                // 1 minute
-  PROGRESS: 60 * 5,        // 5 minutes
+  BOOK_SEARCH: 60 * 60,       // 1 hour
+  BOOK_DESC: 60 * 60 * 24 * 7, // 7 days — descriptions rarely change
+  STREAK: 60 * 60 * 25,       // 25 hours (1h grace past midnight)
+  FEED: 60,                   // 1 minute
+  PROGRESS: 60 * 5,           // 5 minutes
 } as const;
 
 // ─── Typed JSON helpers (degrade gracefully on Redis outage) ──

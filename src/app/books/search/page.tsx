@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Search, BookOpen, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BookInfoModal, type BookDetail } from "@/components/BookInfoModal";
 
 type BookResult = {
   id: string | null;
@@ -24,6 +26,7 @@ export default function BookSearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<Record<string, AddingState>>({});
+  const [bookModal, setBookModal] = useState<{ bookId: string; preloaded?: BookDetail } | null>(null);
 
   // Holds the current in-flight request so we can cancel it when a new
   // query comes in before the previous one finishes.
@@ -196,24 +199,43 @@ export default function BookSearchPage() {
                 }}
               >
                 {/* Cover */}
-                <div
-                  aria-hidden="true"
+                <button
+                  type="button"
+                  aria-label={`View details for ${book.title}`}
+                  onClick={() => {
+                    if (book.id) {
+                      setBookModal({ bookId: book.id });
+                    } else {
+                      setBookModal({
+                        bookId: "",
+                        preloaded: {
+                          id: "", title: book.title, author: book.author,
+                          coverUrl: book.coverUrl, publishedYear: book.publishedYear,
+                          description: null, edition: null, pageCount: null,
+                          olKey: book.olKey,
+                        },
+                      });
+                    }
+                  }}
                   style={{
                     width: "52px", height: "72px", borderRadius: "4px",
                     background: "var(--muted)", flexShrink: 0,
                     overflow: "hidden", display: "flex",
                     alignItems: "center", justifyContent: "center",
+                    border: "none", padding: 0, cursor: "pointer",
                   }}
                 >
                   {book.coverUrl
-                    ? <img
+                    ? <Image
                       src={book.coverUrl}
                       alt=""
+                      width={52}
+                      height={72}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                     : <BookOpen size={20} style={{ color: "var(--muted-foreground)" }} aria-hidden="true" />
                   }
-                </div>
+                </button>
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -303,6 +325,14 @@ export default function BookSearchPage() {
             Try a different title or author
           </p>
         </div>
+      )}
+
+      {bookModal && (
+        <BookInfoModal
+          bookId={bookModal.bookId}
+          preloaded={bookModal.preloaded}
+          onClose={() => setBookModal(null)}
+        />
       )}
     </div>
   );

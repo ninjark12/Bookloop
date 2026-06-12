@@ -12,8 +12,8 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
       "style-src 'self' 'unsafe-inline'",
-      // book covers only; no user-uploaded images yet
-      "img-src 'self' https://covers.openlibrary.org data:",
+      // Book covers are proxied through /_next/image (same origin), so only 'self' is needed
+      "img-src 'self' data:",
       // next/font downloads fonts at build time and serves them from self
       "font-src 'self'",
       // Vercel Analytics beacon
@@ -33,6 +33,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "covers.openlibrary.org" },
+    ],
+  },
   async headers() {
     return [
       {

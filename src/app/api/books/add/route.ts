@@ -15,6 +15,7 @@ const addBookSchema = z.object({
   author: z.string().min(1).max(500),
   coverUrl: z.string().url().nullable().optional(),
   publishedYear: z.number().int().nullable().optional(),
+  description: z.string().nullable().optional(),
   status: z.enum(["READING", "READ", "TBR", "DNF"]).default("TBR"),
 })
 
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
         author: data.author,
         coverUrl: data.coverUrl ?? null,
         publishedYear: data.publishedYear ?? null,
+        description: data.description ?? null,
       })
       .onConflictDoNothing({ target: books.olKey })
       .returning()

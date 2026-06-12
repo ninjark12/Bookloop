@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { BookOpen, Newspaper, Users, RefreshCw, ExternalLink, Eye, EyeOff, UserPlus, X, Search, Check } from "lucide-react";
+import { BookInfoModal } from "@/components/BookInfoModal";
 
 type FriendEntry = {
   id: string;
@@ -84,7 +86,7 @@ function formatChapterLabel(entry: FriendEntry): string {
 
 // -- Full entry modal --
 
-function EntryModal({ entry, onClose }: { entry: FriendEntry; onClose: () => void }) {
+function EntryModal({ entry, onClose, onBookClick }: { entry: FriendEntry; onClose: () => void; onBookClick: (bookId: string) => void }) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -124,10 +126,18 @@ function EntryModal({ entry, onClose }: { entry: FriendEntry; onClose: () => voi
           flexShrink: 0,
         }}>
           {entry.bookCoverUrl && (
-            <img
-              src={entry.bookCoverUrl} alt=""
-              style={{ width: "28px", height: "40px", objectFit: "cover", borderRadius: "2px", flexShrink: 0 }}
-            />
+            <button
+              type="button"
+              onClick={() => onBookClick(entry.bookId)}
+              aria-label={`View details for ${entry.bookTitle}`}
+              style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }}
+            >
+              <Image
+                src={entry.bookCoverUrl} alt=""
+                width={28} height={40}
+                style={{ objectFit: "cover", borderRadius: "2px", display: "block" }}
+              />
+            </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontFamily: "var(--font-display)", fontSize: "14px", fontWeight: 600, color: "var(--foreground)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -247,11 +257,19 @@ function FriendEntryCard({
       {/* Book cover + content row */}
       <div style={{ display: "flex", gap: "0.75rem" }}>
         {entry.bookCoverUrl && (
-          <img
-            src={entry.bookCoverUrl}
-            alt=""
-            style={{ width: "36px", height: "52px", objectFit: "cover", borderRadius: "3px", flexShrink: 0 }}
-          />
+          <button
+            type="button"
+            onClick={() => onBookClick(entry.bookId)}
+            aria-label={`View details for ${entry.bookTitle}`}
+            style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }}
+          >
+            <Image
+              src={entry.bookCoverUrl}
+              alt=""
+              width={36} height={52}
+              style={{ objectFit: "cover", borderRadius: "3px", display: "block" }}
+            />
+          </button>
         )}
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -379,7 +397,7 @@ function FriendEntryCard({
       </div>
 
       {showFullEntry && (
-        <EntryModal entry={entry} onClose={() => setShowFullEntry(false)} />
+        <EntryModal entry={entry} onClose={() => setShowFullEntry(false)} onBookClick={onBookClick} />
       )}
     </article>
   );
@@ -495,6 +513,9 @@ export default function FeedClient() {
   // Pending friend requests — fetched separately so they can refresh independently
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
+
+  // Book info modal state
+  const [bookModalId, setBookModalId] = useState<string | null>(null);
 
   // Add Friend modal state
   const [showModal, setShowModal] = useState(false);
@@ -811,7 +832,7 @@ export default function FeedClient() {
               <FriendEntryCard
                 key={entry.id}
                 entry={entry}
-                onBookClick={(bookId) => router.push(`/journal/${bookId}`)}
+                onBookClick={(bookId) => setBookModalId(bookId)}
               />
             ))
           )}
@@ -1029,6 +1050,11 @@ export default function FeedClient() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Book info modal */}
+      {bookModalId && (
+        <BookInfoModal bookId={bookModalId} onClose={() => setBookModalId(null)} />
       )}
 
       {/* Keyframe for loading spinner and skeleton */}

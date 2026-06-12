@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import { BookInfoModal, type BookDetail } from "@/components/BookInfoModal";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Plus, X, ChevronLeft, Pencil, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,6 +60,7 @@ export default function JournalPageClient({
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
 
+  const [showBookModal, setShowBookModal] = useState(false);
   const [entries, setEntries] = useState<OptimisticEntry[]>(initialEntries);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -462,8 +465,16 @@ export default function JournalPageClient({
           </>
         )}
         {book.coverUrl && (
-          <img src={book.coverUrl} alt={`Cover of ${book.title}`}
-            style={{ width: "28px", height: "40px", objectFit: "cover", borderRadius: "2px" }} />
+          <button
+            type="button"
+            onClick={() => setShowBookModal(true)}
+            aria-label={`View details for ${book.title}`}
+            style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }}
+          >
+            <Image src={book.coverUrl} alt={`Cover of ${book.title}`}
+              width={28} height={40}
+              style={{ objectFit: "cover", borderRadius: "2px", display: "block" }} />
+          </button>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontFamily: "var(--font-display)", fontSize: "14px", fontWeight: 600, color: "var(--foreground)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -610,6 +621,13 @@ export default function JournalPageClient({
             </div>
           </div>
         </div>
+      )}
+      {showBookModal && (
+        <BookInfoModal
+          bookId={book.id}
+          preloaded={book as BookDetail}
+          onClose={() => setShowBookModal(false)}
+        />
       )}
     </div>
   );

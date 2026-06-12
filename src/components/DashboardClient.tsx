@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useRouter } from "next/navigation";
-import { Plus, BookOpen, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 // -- Layout ------------------------------------------------------------------
 // Each page half is a 2-col x 3-row grid (HALF = 6 slots).
@@ -374,19 +374,20 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick, userName }: {
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "clamp(20px,4vw,44px)", background: "var(--primary)", borderRadius: "6px 0 0 6px", display: "flex", flexDirection: "column", justifyContent: "space-around", alignItems: "center", padding: "clamp(12px,3vh,40px) 0" }}>
               {[0, 1, 2, 3, 4, 5, 6, 7].map(i => <div key={i} style={{ width: "clamp(3px,0.7vw,7px)", height: "clamp(3px,0.7vw,7px)", borderRadius: "50%", background: "var(--primary-foreground)", opacity: 0.5 }} />)}
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "clamp(1.25rem,3vh,3rem) clamp(1rem,2.5vw,2.5rem) 1rem clamp(2rem,5vw,5rem)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "clamp(6px,1.5vw,14px)", marginBottom: "clamp(4px,1.5vh,14px)" }}>
-                <BookOpen size={isMobile ? 18 : 22} aria-hidden="true" style={{ color: "var(--primary)", flexShrink: 0 }} />
+            {/* Spine clearance matches spine width exactly so lines go edge-to-edge
+                and centered text is centered over the visible page, not behind the spine */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "clamp(1.25rem,3vh,3rem) clamp(1rem,2.5vw,2.5rem) 1rem clamp(20px,4vw,44px)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "clamp(4px,1.5vh,14px)" }}>
                 <span style={{ fontSize: "clamp(15px,2.5vw,26px)", fontWeight: 700, color: "var(--primary)", fontFamily: "var(--font-display)" }}>
                   {userName ? `${userName.split(" ")[0]}'s` : "Bookloop"}
                 </span>
               </div>
-              <p style={{ fontSize: "clamp(9px,1.5vw,14px)", color: "var(--muted-foreground)", marginBottom: "clamp(14px,4vh,52px)" }}>Reading journal</p>
+              <p style={{ fontSize: "clamp(9px,1.5vw,14px)", color: "var(--muted-foreground)", marginBottom: "clamp(14px,4vh,52px)", textAlign: "center" }}>Reading journal</p>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "clamp(8px,2.5vh,26px)" }}>
                 {Array.from({ length: isMobile ? 8 : 11 }).map((_, i) => <div key={i} style={{ height: "0.5px", background: "var(--border)" }} />)}
               </div>
             </div>
-            <p style={{ textAlign: "center", fontSize: "clamp(8px,1.2vw,12px)", color: "var(--muted-foreground)", paddingBottom: "clamp(10px,2vh,22px)", letterSpacing: "0.04em" }}>
+            <p style={{ textAlign: "center", fontSize: "clamp(8px,1.2vw,12px)", color: "var(--muted-foreground)", paddingBottom: "clamp(10px,2vh,22px)", paddingLeft: "clamp(20px,4vw,44px)", letterSpacing: "0.04em" }}>
               tap to open
             </p>
           </button>

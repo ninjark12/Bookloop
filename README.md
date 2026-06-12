@@ -2,7 +2,7 @@
 
 A reading journal for people who want to read more intentionally and share with friends spoiler free. 
 
-**Live:** [bookloop-abb1.vercel.app](https://bookloop-abb1.vercel.app)
+**Live:** [bookloop.sh](https://bookloop.sh)
 
 ## Features
 

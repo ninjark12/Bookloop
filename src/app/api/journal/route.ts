@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { journalEntries, readingProgress } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { updateStreak } from "@/lib/streak";
 export const dynamic = "force-dynamic"
 const VALID_SCOPES = ["CHAPTER", "RANGE", "WHOLE_BOOK"] as const;
 type Scope = (typeof VALID_SCOPES)[number];
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    // Advance furthestChapter -- never regress, never throw if this fails
+    // Advance furthestChapter — non-fatal
     try {
       await db
         .update(readingProgress)
@@ -108,8 +109,14 @@ export async function POST(req: NextRequest) {
           )
         );
     } catch (e) {
-      // Non-fatal: entry is saved, streak update failure shouldn't block the response
       console.error("[POST /api/journal] furthestChapter update failed:", e);
+    }
+
+    // Update streak — non-fatal
+    try {
+      await updateStreak(userId);
+    } catch (e) {
+      console.error("[POST /api/journal] streak update failed:", e);
     }
 
     return NextResponse.json({ entry }, { status: 201 });

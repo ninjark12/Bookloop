@@ -46,8 +46,12 @@ describe("GET /api/books/search", () => {
 
   describe("local DB cache hit", () => {
     it("returns local results without calling Open Library", async () => {
-      vi.mocked(db.limit).mockResolvedValueOnce([
-        { id: "book-1", title: "Dune", author: "Herbert" },
+      // Route uses db.execute() for raw FTS+trigram SQL.
+      // Needs >= 3 rows with combinedScore >= 0.1 to take the local-only path.
+      vi.mocked(db.execute).mockResolvedValueOnce([
+        { id: "book-1", olKey: "/works/OL1", title: "Dune", author: "Frank Herbert", coverUrl: null, publishedYear: 1965, combinedScore: 0.9 },
+        { id: "book-2", olKey: null, title: "Dune Messiah", author: "Frank Herbert", coverUrl: null, publishedYear: 1969, combinedScore: 0.7 },
+        { id: "book-3", olKey: null, title: "Children of Dune", author: "Frank Herbert", coverUrl: null, publishedYear: 1976, combinedScore: 0.5 },
       ]);
       const res = await GET(makeReq("dune"));
       expect(res.status).toBe(200);
@@ -60,7 +64,7 @@ describe("GET /api/books/search", () => {
 
   describe("Open Library fallback", () => {
     it("calls Open Library when local DB has no results", async () => {
-      vi.mocked(db.limit).mockResolvedValueOnce([]);
+      vi.mocked(db.execute).mockResolvedValueOnce([]);
       vi.mocked(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -74,11 +78,15 @@ describe("GET /api/books/search", () => {
       expect(data.results[0].title).toBe("Dune");
     });
 
-    it("returns 502 when Open Library is unavailable", async () => {
-      vi.mocked(db.limit).mockResolvedValueOnce([]);
+    it("returns 200 with empty results when Open Library is unavailable", async () => {
+      // searchOpenLibraryCached catches OL errors internally and returns [].
+      vi.mocked(db.execute).mockResolvedValueOnce([]);
       vi.mocked(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: false, status: 503 });
       const res = await GET(makeReq("dune"));
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.source).toBe("openlibrary");
+      expect(data.results).toHaveLength(0);
     });
   });
 });
@@ -126,10 +134,11 @@ describe("POST /api/books/add", () => {
     it("creates a new book and reading progress, returns 201", async () => {
       const newBook = { id: "book-1", title: "Dune", author: "Frank Herbert" };
       const progress = { id: "prog-1", bookId: "book-1", status: "TBR" };
-      vi.mocked(db.limit).mockResolvedValueOnce([]); // no existing by olKey
+      // Route: insert book (onConflictDoNothing) → returning() gives [newBook]
+      //        insert readingProgress (onConflictDoUpdate) → returning() gives [progress]
       vi.mocked(db.returning)
-        .mockResolvedValueOnce([newBook])  // insert book
-        .mockResolvedValueOnce([progress]); // insert progress
+        .mockResolvedValueOnce([newBook])
+        .mockResolvedValueOnce([progress]);
       const res = await POST(makeReq({ ...validPayload, olKey: "/works/OL1" }));
       expect(res.status).toBe(201);
       const data = await res.json();
@@ -140,8 +149,13 @@ describe("POST /api/books/add", () => {
     it("reuses an existing book row when olKey matches", async () => {
       const existingBook = { id: "book-1", title: "Dune" };
       const progress = { id: "prog-1", bookId: "book-1", status: "READING" };
-      vi.mocked(db.limit).mockResolvedValueOnce([existingBook]); // found by olKey
-      vi.mocked(db.returning).mockResolvedValueOnce([progress]);
+      // Route: insert book → onConflictDoNothing → returning() gives [] (conflict, no insert)
+      //        then fetches existing by olKey via db.limit
+      //        then inserts reading progress → returning() gives [progress]
+      vi.mocked(db.returning)
+        .mockResolvedValueOnce([])         // book insert conflicted
+        .mockResolvedValueOnce([progress]); // progress insert
+      vi.mocked(db.limit).mockResolvedValueOnce([existingBook]); // fetch by olKey
       const res = await POST(makeReq({ ...validPayload, olKey: "/works/OL1", status: "READING" }));
       expect(res.status).toBe(201);
       const data = await res.json();

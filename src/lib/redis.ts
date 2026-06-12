@@ -1,9 +1,6 @@
 import Redis from "ioredis";
 
 // Singleton so Next.js hot-reload doesn't open a new connection on every save.
-// Falls back to a no-op stub when REDIS_URL is not set (e.g. in test environments)
-// so pages that import streak.ts don't crash just because Redis is unavailable.
-
 declare global {
   // eslint-disable-next-line no-var
   var __redis: Redis | undefined;
@@ -12,15 +9,14 @@ declare global {
 function createClient(): Redis {
   const url = process.env.REDIS_URL ?? "redis://localhost:6379";
   const client = new Redis(url, {
-    // Don't crash the whole app if Redis is unreachable -- just log and move on.
-    // Streak dedup will be skipped but nothing else breaks.
     lazyConnect: true,
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    maxRetriesPerRequest: 2,
+    // enableOfflineQueue defaults to true — commands issued during reconnect are
+    // queued and flushed once the connection is ready. Setting it to false was
+    // silently dropping writes during the ~30s TLS reconnect window to Upstash.
   });
 
   client.on("error", (err) => {
-    // Log once per error type rather than flooding the console
     console.error("[redis] connection error:", err.message);
   });
 
@@ -45,11 +41,11 @@ export const keys = {
 
 // ─── TTL constants (seconds) ──────────────────────────────────
 export const TTL = {
-  BOOK_SEARCH: 60 * 60,       // 1 hour
-  BOOK_DESC: 60 * 60 * 24 * 7, // 7 days — descriptions rarely change
-  STREAK: 60 * 60 * 25,       // 25 hours (1h grace past midnight)
-  FEED: 60,                   // 1 minute
-  PROGRESS: 60 * 5,           // 5 minutes
+  BOOK_SEARCH: 60 * 60,        // 1 hour
+  BOOK_DESC: 60 * 60 * 24 * 7, // 7 days
+  STREAK: 60 * 60 * 25,        // 25 hours (1h buffer past midnight)
+  FEED: 60,                    // 1 minute
+  PROGRESS: 60 * 5,            // 5 minutes
 } as const;
 
 // ─── Typed JSON helpers (degrade gracefully on Redis outage) ──

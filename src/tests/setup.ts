@@ -48,7 +48,9 @@ vi.mock("@/db", () => ({
     set: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     onConflictDoUpdate: vi.fn().mockReturnThis(),
+    onConflictDoNothing: vi.fn().mockReturnThis(),
     innerJoin: vi.fn().mockReturnThis(),
+    execute: vi.fn().mockResolvedValue([]),
     then: vi.fn().mockImplementation((resolve: (value: unknown) => void) => resolve([])),
     transaction: vi.fn().mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
@@ -71,9 +73,27 @@ vi.mock("@/lib/redis", () => ({
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue("OK"),
     setex: vi.fn().mockResolvedValue("OK"),
+    del: vi.fn().mockResolvedValue(1),
+    status: "ready",
+    once: vi.fn(),
   },
-  getStreak: vi.fn().mockResolvedValue(null),
-  setStreak: vi.fn().mockResolvedValue(undefined),
+  keys: {
+    streak: (userId: string) => `streak:${userId}`,
+    bookSearch: (q: string) => `book_search:${encodeURIComponent(q)}`,
+    bookDesc: (k: string) => `book_desc:${encodeURIComponent(k)}`,
+    feed: (userId: string) => `feed:${userId}`,
+    rateLimit: (userId: string, ep: string) => `rl:${ep}:${userId}`,
+    progress: (userId: string, bookId: string) => `progress:${userId}:${bookId}`,
+  },
+  TTL: {
+    BOOK_SEARCH: 3600,
+    BOOK_DESC: 604800,
+    STREAK: 90000,
+    FEED: 60,
+    PROGRESS: 300,
+  },
+  getJSON: vi.fn().mockResolvedValue(null),
+  setJSON: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock Chrome extension APIs (used by extension tests; no-op in all others)

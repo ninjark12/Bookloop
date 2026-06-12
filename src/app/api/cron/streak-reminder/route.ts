@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { and, eq, isNotNull, lt } from "drizzle-orm";
+import { and, eq, gt, isNotNull, lt } from "drizzle-orm";
 import { sendStreakReminderEmail } from "@/lib/email";
+import { expireStreak } from "@/lib/streak";
 
 // This route is called by Vercel Cron (see vercel.json).
 // It runs every hour and sends reminder emails to users whose
@@ -79,8 +80,31 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Zero out streaks whose grace period has expired
+  const expired = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        isNotNull(users.graceUntil),
+        lt(users.graceUntil, now),
+        gt(users.streakCount, 0),
+      )
+    );
+
+  let zeroed = 0;
+  for (const user of expired) {
+    try {
+      await expireStreak(user.id);
+      zeroed++;
+    } catch (e) {
+      errors.push(`expire:${user.id}: ${e instanceof Error ? e.message : "unknown"}`);
+    }
+  }
+
   return NextResponse.json({
     sent,
+    zeroed,
     errors: errors.length > 0 ? errors : undefined,
   });
 }

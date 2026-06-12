@@ -2,16 +2,16 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { db } from "@/db"
-import { readingProgress, books, users } from "@/db/schema"
+import { readingProgress, books } from "@/db/schema"
 import { eq, desc } from "drizzle-orm"
 import DashboardClient from "@/components/DashboardClient"
-import { SortDesc } from "lucide-react"
+import { getStreakCount } from "@/lib/streak"
 export const dynamic = "force-dynamic"
 export default async function Dashboard() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/login")
 
-  const [userBooks, userData] = await Promise.all([
+  const [userBooks, streak] = await Promise.all([
     db
       .select({
         id: books.id,
@@ -26,15 +26,8 @@ export default async function Dashboard() {
       .innerJoin(books, eq(readingProgress.bookId, books.id))
       .where(eq(readingProgress.userId, session.user.id))
       .orderBy(desc(books.createdAt)),
-    db
-      .select({ streakCount: users.streakCount })
-      .from(users)
-      .where(eq(users.id, session.user.id))
-      .limit(1)
-      .then(rows => rows[0]),
+    getStreakCount(session.user.id),
   ])
-
-  const streak = userData?.streakCount ?? 0
 
   return <DashboardClient books={userBooks} streak={streak} userName={session.user.name} />
 }

@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 const items = [
   { href: "/dashboard", label: "Journal", icon: BookOpen },
   { href: "/books/search", label: "Books", icon: Search },
-  { href: "/feed", label: "Feed", icon: Users },
+  { href: "/feed", label: "Friends", icon: Users },
   { href: "/profile", label: "Profile", icon: User },
 ] as const;
 
@@ -23,7 +23,7 @@ export default function BottomNav() {
     fetch("/api/friends/requests")
       .then((r) => r.json())
       .then((json) => setPendingCount(json.requests?.length ?? 0))
-      .catch(() => {});
+      .catch(() => { });
   }, [session, pathname]);
 
   if (!session) return null;

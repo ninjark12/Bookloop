@@ -3,11 +3,13 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redis, keys, TTL } from "@/lib/redis";
 
-const GRACE_MS = 24 * 60 * 60 * 1000;
+// 3 calendar days ahead from the start of the write day.
+// Write Monday → graceUntil = Thursday 00:00 local → Tuesday and Wednesday are valid.
+const GRACE_DAYS = 3;
 
 // "YYYY-MM-DD" in LOCAL time — avoids UTC/local-midnight mismatch when
 // comparing dates across calendar day boundaries in non-UTC timezones.
-function toLocalDateStr(d: Date): string {
+export function toLocalDateStr(d: Date): string {
   return (
     `${d.getFullYear()}-` +
     `${String(d.getMonth() + 1).padStart(2, "0")}-` +
@@ -15,34 +17,32 @@ function toLocalDateStr(d: Date): string {
   );
 }
 
-// Parse a "YYYY-MM-DD" string as LOCAL midnight.
-// new Date("YYYY-MM-DD") parses as UTC midnight, giving wrong dayDiff values
-// in non-UTC timezones (e.g. a user in EST sees dayDiff=0 on consecutive days).
 function parseLocalDate(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
+// Value stored as "YYYY-MM-DD:count" so the fast-path can check the date
+// without a DB read. TTL = seconds until graceUntil (midnight of write day + 3).
 async function cacheStreak(userId: string, count: number, graceUntil: Date | null): Promise<void> {
   const now = Date.now();
+  const todayStr = toLocalDateStr(new Date(now));
   const ttl = graceUntil
     ? Math.max(60, Math.ceil((graceUntil.getTime() - now) / 1000))
     : TTL.STREAK;
   try {
-    await redis.setex(keys.streak(userId), ttl, String(count));
+    await redis.setex(keys.streak(userId), ttl, `${todayStr}:${count}`);
   } catch (e) {
     console.error("[streak] cache write failed:", e);
   }
 }
 
 export async function updateStreak(userId: string): Promise<void> {
-  // Fast-path: if the streak key is already cached, the streak is current for
-  // today — skip the DB round-trip entirely.
-  try {
-    const cached = await redis.get(keys.streak(userId));
-    if (cached !== null) return;
-  } catch {}
+  const now = new Date();
+  const todayStr = toLocalDateStr(now);
 
+  // DB path — caller (journal route) already checked the Redis cache and only
+  // calls here when the day has changed. DB dedup is a safety net for Redis-down.
   const [user] = await db
     .select({
       streakCount: users.streakCount,
@@ -56,58 +56,54 @@ export async function updateStreak(userId: string): Promise<void> {
 
   if (!user) return;
 
-  const now = new Date();
-  const todayStr = toLocalDateStr(now);
+  // Guard against same-day double-write when Redis is unavailable.
+  if (user.lastEntryDate === todayStr) return;
 
-  let newStreak = user.streakCount ?? 0;
-  let newGraceUntil: Date | null = user.graceUntil ? new Date(user.graceUntil) : null;
+  let newStreak: number;
 
   if (!user.lastEntryDate) {
     newStreak = 1;
-    newGraceUntil = null;
   } else {
     const today = parseLocalDate(todayStr);
     const last = parseLocalDate(user.lastEntryDate);
     const dayDiff = Math.round((today.getTime() - last.getTime()) / 86400000);
 
-    if (dayDiff === 0) {
-      // Same calendar day — already counted
-    } else if (dayDiff === 1) {
+    if (dayDiff === 1) {
       newStreak = (user.streakCount ?? 0) + 1;
-      newGraceUntil = null;
     } else {
-      const inGrace = newGraceUntil && now < newGraceUntil;
-      if (inGrace) {
-        newStreak = (user.streakCount ?? 0) + 1;
-        newGraceUntil = null;
-      } else {
-        newStreak = 1;
-        newGraceUntil = new Date(now.getTime() + GRACE_MS);
-      }
+      // Missed one or more days — continue if inside the calendar grace window
+      const graceExpiry = user.graceUntil ? new Date(user.graceUntil) : null;
+      newStreak = graceExpiry && now < graceExpiry ? (user.streakCount ?? 0) + 1 : 1;
     }
   }
 
+  // graceUntil = midnight of (write day + GRACE_DAYS).
+  // Write Monday → Thursday 00:00 local → Tuesday and Wednesday are both valid.
+  // Calendar-day anchor (not now + Nh) so the window is consistent regardless
+  // of what time of day the entry is written.
+  const writeDayStart = parseLocalDate(todayStr);
+  const newGraceUntil = new Date(writeDayStart.getTime() + GRACE_DAYS * 24 * 60 * 60 * 1000);
   const newLongest = Math.max(newStreak, user.longestStreak ?? 0);
 
   await db
     .update(users)
-    .set({
-      streakCount: newStreak,
-      longestStreak: newLongest,
-      graceUntil: newGraceUntil,
-      lastEntryDate: todayStr,
-    })
+    .set({ streakCount: newStreak, longestStreak: newLongest, graceUntil: newGraceUntil, lastEntryDate: todayStr })
     .where(eq(users.id, userId));
 
   await cacheStreak(userId, newStreak, newGraceUntil);
 }
 
-// Read the effective streak for display. Returns 0 if grace has expired.
+// Read the effective streak for display. Returns 0 once the 48h grace window expires.
 // Reads Redis first; falls back to DB on a cache miss.
 export async function getStreakCount(userId: string): Promise<number> {
   try {
     const cached = await redis.get(keys.streak(userId));
-    if (cached !== null) return parseInt(cached, 10);
+    if (cached !== null) {
+      // Format: "YYYY-MM-DD:count" (or legacy plain count from old keys)
+      const parts = cached.split(":");
+      const count = parseInt(parts.length > 1 ? parts[1] : parts[0], 10);
+      if (!isNaN(count)) return count;
+    }
   } catch {}
 
   const [user] = await db

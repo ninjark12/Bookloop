@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 const links = [
   { href: "/dashboard", label: "Journal" },
   { href: "/books/search", label: "Books" },
-  { href: "/feed", label: "Feed" },
+  { href: "/feed", label: "Friends" },
 ];
 
 export default function Navbar() {
@@ -33,7 +33,7 @@ export default function Navbar() {
     fetch("/api/friends/requests")
       .then((r) => r.json())
       .then((json) => setPendingCount(json.requests?.length ?? 0))
-      .catch(() => {});
+      .catch(() => { });
   }, [session, pathname]);
 
   // Close dropdown when clicking outside

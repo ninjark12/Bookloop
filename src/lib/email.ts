@@ -20,15 +20,12 @@ export async function sendStreakReminderEmail({
   streakCount: number;
   graceUntil: Date;
 }): Promise<void> {
-  const hoursLeft = Math.max(
-    0,
-    Math.round((graceUntil.getTime() - Date.now()) / (1000 * 60 * 60))
-  );
-
+  // graceUntil is midnight of day+3 from last write, so this email always
+  // arrives on the last valid writing day — "expires at end of today" is accurate.
   const subject =
     streakCount >= 7
-      ? `Your ${streakCount}-day Bookloop streak is at risk`
-      : `Don't lose your Bookloop streak`;
+      ? `Grace period: your ${streakCount}-day streak resets at midnight`
+      : `Grace period: write today to save your Bookloop streak`;
 
   const html = `
 <!DOCTYPE html>
@@ -60,10 +57,12 @@ export async function sendStreakReminderEmail({
               <p style="margin:0 0 16px;font-size:16px;color:#2C1810;line-height:1.6;">
                 Hi ${name},
               </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#2C1810;line-height:1.6;">
+                You missed yesterday, so today is your <strong>grace period day</strong> —
+                a one-day window to keep your streak alive before it resets at midnight tonight.
+              </p>
               <p style="margin:0 0 24px;font-size:15px;color:#2C1810;line-height:1.6;">
-                Your <strong>${streakCount}-day reading streak</strong> is about to expire.
-                You have <strong>${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}</strong> left
-                in your grace period to write a journal entry and keep it alive.
+                Write a journal entry today and your <strong>${streakCount}-day streak</strong> continues as if nothing happened.
               </p>
 
               <!-- Streak count callout -->

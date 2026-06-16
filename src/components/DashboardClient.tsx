@@ -365,7 +365,7 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick, userName }: {
   return (
     <>
       <div ref={bookSpreadRef} style={{ position: "fixed", top: "64px", bottom: isMobile ? "56px" : 0, left: 0, right: 0, zIndex: 1, opacity: 0, background: "var(--card)" }} />
-      <div style={{ position: "fixed", inset: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
+      <div style={{ position: "fixed", top: "64px", bottom: isMobile ? "56px" : 0, left: 0, right: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
         <div style={{ position: "relative", width: w, height: h }}>
           <button type="button" ref={notebookRef} onClick={onClick} aria-label="Open your reading journal"
             style={{ position: "absolute", inset: 0, background: "var(--card)", border: "0.5px solid var(--border)", borderRadius: "6px 20px 20px 6px", transform: "rotate(-3deg)", display: "flex", flexDirection: "column", overflow: "hidden", transition: "box-shadow 0.2s", width: "100%", fontFamily: "inherit" }}
@@ -563,7 +563,7 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
             {totalPages > 1 && <span style={{ fontSize: "11px", color: "var(--muted-foreground)" }}>{currentPage + 1} / {totalPages}</span>}
           </div>
           <div style={{ height: "1px", background: "var(--primary)", opacity: 0.4, flexShrink: 0 }} />
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0.75rem 1.25rem", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: "0.6rem", alignContent: "start" }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0.75rem 1.25rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", alignContent: "start" }}>
             {mobileItems.map((item) =>
               item.type === "add"
                 ? <AddCard key="add" onClick={handleAddBook} />

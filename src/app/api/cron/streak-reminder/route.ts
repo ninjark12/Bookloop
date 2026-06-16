@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, gt, isNotNull, lt } from "drizzle-orm";
 import { sendStreakReminderEmail } from "@/lib/email";
-import { expireStreak } from "@/lib/streak";
+import { expireStreak, toLocalDateStr } from "@/lib/streak";
 
 // This route is called by Vercel Cron (see vercel.json).
 // It runs every hour and sends reminder emails to users whose
@@ -19,11 +19,14 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
+  const todayStr = toLocalDateStr(now);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = toLocalDateStr(yesterday);
 
-  // Find users who:
-  //   1. Have email notifications turned on
-  //   2. Are currently in a grace period (graceUntil is set and in the future)
-  //   3. Have not yet been emailed this grace period (we use Redis to track this)
+  // Find users who haven't written today but still have an active grace window.
+  // graceUntil is now set on every write (48h ahead), so we must also check
+  // lastEntryDate to avoid emailing users who already wrote today.
   const atRiskUsers = await db
     .select({
       id: users.id,
@@ -31,15 +34,13 @@ export async function GET(req: NextRequest) {
       email: users.email,
       streakCount: users.streakCount,
       graceUntil: users.graceUntil,
+      lastEntryDate: users.lastEntryDate,
     })
     .from(users)
     .where(
       and(
         eq(users.emailNotifications, true),
         isNotNull(users.graceUntil),
-        // graceUntil is in the future -- still alive
-        // Drizzle doesn't have gt for dates directly; use raw or cast
-        // We filter in JS below for safety
       )
     );
 
@@ -53,14 +54,25 @@ export async function GET(req: NextRequest) {
     // Skip if grace has already expired
     if (graceDate <= now) continue;
 
+    // Email only on day 2 of the missed streak (e.g. Wednesday when last wrote Monday).
+    // dayDiff = 1 (wrote yesterday) means they're still on track — no reminder needed.
+    // dayDiff >= 2 (wrote day-before-yesterday or earlier) is the at-risk window.
+    if (!user.lastEntryDate || user.lastEntryDate >= yesterdayStr) continue;
+
     // Skip if email is missing
     if (!user.email) continue;
 
     // Dedup: only email once per grace period per user
-    // Key expires when the grace period does
+    // Key expires when the grace period does. Redis failure → skip dedup
+    // and allow the email (risk one duplicate) rather than blocking all sends.
     const { redis } = await import("@/lib/redis");
     const dedupKey = `streak:reminder:sent:${user.id}`;
-    const alreadySent = await redis.get(dedupKey);
+    let alreadySent = false;
+    try {
+      alreadySent = (await redis.get(dedupKey)) !== null;
+    } catch {
+      // Redis unavailable — proceed without dedup
+    }
     if (alreadySent) continue;
 
     try {
@@ -72,8 +84,12 @@ export async function GET(req: NextRequest) {
       });
 
       // Mark as sent -- TTL matches when the grace period expires
-      const ttlSeconds = Math.ceil((graceDate.getTime() - now.getTime()) / 1000);
-      await redis.setex(dedupKey, ttlSeconds, "1");
+      try {
+        const ttlSeconds = Math.ceil((graceDate.getTime() - now.getTime()) / 1000);
+        await redis.setex(dedupKey, ttlSeconds, "1");
+      } catch {
+        // Non-fatal: email was sent; we just won't deduplicate this run
+      }
       sent++;
     } catch (e) {
       errors.push(`${user.id}: ${e instanceof Error ? e.message : "unknown"}`);

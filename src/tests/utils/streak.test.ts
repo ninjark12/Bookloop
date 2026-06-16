@@ -19,13 +19,6 @@ function todayStr(): string {
 const baseUser = { streakCount: 0, longestStreak: 0, graceUntil: null, lastEntryDate: null };
 
 describe("updateStreak", () => {
-  describe("Redis fast-path dedup", () => {
-    it("returns early without DB call when streak key already cached", async () => {
-      vi.mocked(redis.get).mockResolvedValueOnce("3");
-      await updateStreak(USER_ID);
-      expect(vi.mocked(db.update)).not.toHaveBeenCalled();
-    });
-  });
 
   describe("user not found", () => {
     it("exits early when user row does not exist", async () => {
@@ -35,26 +28,36 @@ describe("updateStreak", () => {
     });
   });
 
+  describe("same calendar day (DB dedup fallback)", () => {
+    it("does not update DB when lastEntryDate is already today", async () => {
+      vi.mocked(db.limit).mockResolvedValueOnce([{
+        ...baseUser, streakCount: 3, longestStreak: 5, lastEntryDate: todayStr(),
+      }]);
+      await updateStreak(USER_ID);
+      expect(vi.mocked(db.update)).not.toHaveBeenCalled();
+    });
+  });
+
   describe("first ever entry", () => {
-    it("sets streak to 1 and clears graceUntil", async () => {
+    it("sets streak to 1 with a 48h grace window", async () => {
       vi.mocked(db.limit).mockResolvedValueOnce([{ ...baseUser }]);
       await updateStreak(USER_ID);
       const setArg = vi.mocked(db.set).mock.calls[0][0] as Record<string, unknown>;
       expect(setArg.streakCount).toBe(1);
-      expect(setArg.graceUntil).toBeNull();
       expect(setArg.longestStreak).toBe(1);
+      expect(setArg.graceUntil).not.toBeNull();
     });
   });
 
   describe("consecutive day", () => {
-    it("increments streak and clears graceUntil", async () => {
+    it("increments streak and sets a fresh 48h grace window", async () => {
       vi.mocked(db.limit).mockResolvedValueOnce([{
         ...baseUser, streakCount: 5, longestStreak: 8, lastEntryDate: daysAgoStr(1),
       }]);
       await updateStreak(USER_ID);
       const setArg = vi.mocked(db.set).mock.calls[0][0] as Record<string, unknown>;
       expect(setArg.streakCount).toBe(6);
-      expect(setArg.graceUntil).toBeNull();
+      expect(setArg.graceUntil).not.toBeNull();
       expect(setArg.longestStreak).toBe(8); // 6 < 8, longest unchanged
     });
 
@@ -69,19 +72,8 @@ describe("updateStreak", () => {
     });
   });
 
-  describe("same calendar day", () => {
-    it("does not change streakCount when writing again today", async () => {
-      vi.mocked(db.limit).mockResolvedValueOnce([{
-        ...baseUser, streakCount: 3, longestStreak: 5, lastEntryDate: todayStr(),
-      }]);
-      await updateStreak(USER_ID);
-      const setArg = vi.mocked(db.set).mock.calls[0][0] as Record<string, unknown>;
-      expect(setArg.streakCount).toBe(3);
-    });
-  });
-
   describe("missed day - in grace period", () => {
-    it("continues the streak when writing during the grace window", async () => {
+    it("continues the streak and resets the 48h window", async () => {
       const futureGrace = new Date(Date.now() + 60 * 60 * 1000);
       vi.mocked(db.limit).mockResolvedValueOnce([{
         ...baseUser, streakCount: 10, longestStreak: 10,
@@ -90,12 +82,12 @@ describe("updateStreak", () => {
       await updateStreak(USER_ID);
       const setArg = vi.mocked(db.set).mock.calls[0][0] as Record<string, unknown>;
       expect(setArg.streakCount).toBe(11);
-      expect(setArg.graceUntil).toBeNull();
+      expect(setArg.graceUntil).not.toBeNull();
     });
   });
 
   describe("missed day - grace expired", () => {
-    it("resets streak to 1 and sets a new grace period", async () => {
+    it("resets streak to 1 and sets a new 48h grace window", async () => {
       const pastGrace = new Date(Date.now() - 60 * 1000);
       vi.mocked(db.limit).mockResolvedValueOnce([{
         ...baseUser, streakCount: 10, longestStreak: 10,
@@ -119,7 +111,7 @@ describe("updateStreak", () => {
   });
 
   describe("redis cache write", () => {
-    it("writes the new streak count to Redis after a DB update", async () => {
+    it("writes YYYY-MM-DD:count to Redis with 48h TTL after a DB update", async () => {
       vi.mocked(db.limit).mockResolvedValueOnce([{
         ...baseUser, streakCount: 2, longestStreak: 3, lastEntryDate: daysAgoStr(1),
       }]);
@@ -127,8 +119,8 @@ describe("updateStreak", () => {
       expect(vi.mocked(redis.setex)).toHaveBeenCalled();
       const [key, ttl, value] = (vi.mocked(redis.setex) as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(key).toContain(USER_ID);
-      expect(ttl).toBe(25 * 60 * 60);
-      expect(value).toBe("3"); // newStreak = 2 + 1
+      expect(ttl).toBeGreaterThanOrEqual(48 * 60 * 60 - 5); // ~48h
+      expect(value).toMatch(/^\d{4}-\d{2}-\d{2}:3$/); // "YYYY-MM-DD:3"
     });
   });
 });

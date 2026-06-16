@@ -4,7 +4,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { journalEntries, readingProgress } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { updateStreak } from "@/lib/streak";
+import { updateStreak, toLocalDateStr } from "@/lib/streak";
+import { redis, keys } from "@/lib/redis";
 export const dynamic = "force-dynamic"
 const VALID_SCOPES = ["CHAPTER", "RANGE", "WHOLE_BOOK"] as const;
 type Scope = (typeof VALID_SCOPES)[number];
@@ -112,9 +113,16 @@ export async function POST(req: NextRequest) {
       console.error("[POST /api/journal] furthestChapter update failed:", e);
     }
 
-    // Update streak — non-fatal
+    // Update streak — only when the day has actually changed.
+    // Check the Redis cache here (at the write site) so updateStreak is only
+    // called when a real journal entry changes the calendar day.
     try {
-      await updateStreak(userId);
+      let wroteToday = false;
+      try {
+        const cached = await redis.get(keys.streak(userId));
+        if (cached !== null) wroteToday = cached.split(":")[0] === toLocalDateStr(new Date());
+      } catch {}
+      if (!wroteToday) await updateStreak(userId);
     } catch (e) {
       console.error("[POST /api/journal] streak update failed:", e);
     }

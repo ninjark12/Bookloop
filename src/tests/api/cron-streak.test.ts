@@ -11,6 +11,12 @@ import { sendStreakReminderEmail } from "@/lib/email";
 
 const CRON_SECRET = "test-secret";
 
+function daysAgoStr(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function makeReq(secret?: string) {
   return new NextRequest("http://localhost/api/cron/streak-reminder", {
     headers: secret ? { authorization: `Bearer ${secret}` } : {},
@@ -51,7 +57,7 @@ describe("GET /api/cron/streak-reminder", () => {
 
       vi.mocked(db.then).mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve([
-          { id: "user-1", name: "Alice", email: "alice@example.com", streakCount: 7, graceUntil: futureGrace },
+          { id: "user-1", name: "Alice", email: "alice@example.com", streakCount: 7, graceUntil: futureGrace, lastEntryDate: daysAgoStr(2) },
         ])
       );
       vi.mocked(redis.get).mockResolvedValueOnce(null); // not yet sent
@@ -71,7 +77,7 @@ describe("GET /api/cron/streak-reminder", () => {
 
       vi.mocked(db.then).mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve([
-          { id: "user-1", name: "Alice", email: "alice@example.com", streakCount: 5, graceUntil: pastGrace },
+          { id: "user-1", name: "Alice", email: "alice@example.com", streakCount: 5, graceUntil: pastGrace, lastEntryDate: daysAgoStr(2) },
         ])
       );
 
@@ -89,7 +95,7 @@ describe("GET /api/cron/streak-reminder", () => {
 
       vi.mocked(db.then).mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve([
-          { id: "user-1", name: "Alice", email: "alice@example.com", streakCount: 3, graceUntil: futureGrace },
+          { id: "user-1", name: "Alice", email: "alice@example.com", streakCount: 3, graceUntil: futureGrace, lastEntryDate: daysAgoStr(2) },
         ])
       );
       vi.mocked(redis.get).mockResolvedValueOnce("1"); // already sent
@@ -106,7 +112,7 @@ describe("GET /api/cron/streak-reminder", () => {
 
       vi.mocked(db.then).mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve([
-          { id: "user-1", name: "Alice", email: null, streakCount: 3, graceUntil: futureGrace },
+          { id: "user-1", name: "Alice", email: null, streakCount: 3, graceUntil: futureGrace, lastEntryDate: daysAgoStr(2) },
         ])
       );
 

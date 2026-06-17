@@ -368,8 +368,23 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick, userName }: {
       <div style={{ position: "fixed", top: "64px", bottom: isMobile ? "56px" : 0, left: 0, right: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
         <div style={{ position: "relative", width: w, height: h }}>
           <button type="button" ref={notebookRef} onClick={onClick} aria-label="Open your reading journal"
-            style={{ position: "absolute", inset: 0, background: "var(--card)", border: "0.5px solid var(--border)", borderRadius: "6px 20px 20px 6px", transform: "rotate(-3deg)", display: "flex", flexDirection: "column", overflow: "hidden", transition: "box-shadow 0.2s", width: "100%", fontFamily: "inherit" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 16px 56px rgba(107,76,42,0.2)"; }}
+            style={{
+              position: "absolute", inset: 0,
+              background: "var(--card)", border: "0.5px solid var(--border)",
+              borderRadius: "6px 20px 20px 6px",
+              transform: "rotate(-3deg)",
+              display: "flex", flexDirection: "column",
+              alignItems: "stretch",
+              boxSizing: "border-box",
+              overflow: "hidden",
+              transition: "box-shadow 0.2s",
+              width: "100%", height: "100%",
+              padding: 0,
+              fontFamily: "inherit",
+              textAlign: "center",
+              WebkitAppearance: "none",
+              appearance: "none",
+            }} onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 16px 56px rgba(107,76,42,0.2)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}>
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "clamp(20px,4vw,44px)", background: "var(--primary)", borderRadius: "6px 0 0 6px", display: "flex", flexDirection: "column", justifyContent: "space-around", alignItems: "center", padding: "clamp(12px,3vh,40px) 0" }}>
               {[0, 1, 2, 3, 4, 5, 6, 7].map(i => <div key={i} style={{ width: "clamp(3px,0.7vw,7px)", height: "clamp(3px,0.7vw,7px)", borderRadius: "50%", background: "var(--primary-foreground)", opacity: 0.5 }} />)}

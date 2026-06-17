@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/get-session";
 import HeroSection from "@/components/HeroSection";
 import FeatureCard from "@/components/FeatureCard";
 import { BookOpen, Shield, Users } from "lucide-react";
-export const dynamic = "force-dynamic"
+
 const features = [
   {
     icon: BookOpen,
@@ -24,15 +23,7 @@ const features = [
 ];
 
 export default async function Home() {
-  let session = null;
-  try {
-    session = await auth.api.getSession({ headers: await headers() });
-  } catch (e) {
-    // Session cookie exists but the DB row is gone (expired and purged)
-    // or the DB is momentarily unreachable. Treat as unauthenticated.
-    console.error("[home] getSession failed:", e);
-  }
-
+  const session = await getSession();
   if (session) redirect("/dashboard");
 
   return (

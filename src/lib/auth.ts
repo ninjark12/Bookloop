@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { sessions, users, accounts, verifications } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { assignDiscriminator, sanitizeDisplayName } from "@/lib/assign-discriminator";
+import { redis, keys } from "@/lib/redis";
 import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY
@@ -33,6 +34,26 @@ export const auth = betterAuth({
       verification: verifications,
     },
   }),
+  secondaryStorage: {
+    get: async (key) => {
+      try {
+        return await redis.get(keys.session(key));
+      } catch {
+        return null;
+      }
+    },
+    set: async (key, value, ttl) => {
+      try {
+        if (ttl) await redis.set(keys.session(key), value, "EX", ttl);
+        else await redis.set(keys.session(key), value);
+      } catch {}
+    },
+    delete: async (key) => {
+      try {
+        await redis.del(keys.session(key));
+      } catch {}
+    },
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {

@@ -3,7 +3,6 @@ import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, ilike, isNotNull, ne } from "drizzle-orm";
-export const dynamic = "force-dynamic";
 
 const USER_COLS = {
   id: users.id,

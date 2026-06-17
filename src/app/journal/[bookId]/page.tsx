@@ -1,11 +1,10 @@
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getSession } from "@/lib/get-session"
 import { redirect, notFound } from "next/navigation"
 import { db } from "@/db"
 import { journalEntries, books, readingProgress } from "@/db/schema"
 import { eq, and, desc } from "drizzle-orm"
 import JournalPageClient from "@/components/JournalPageClient"
-export const dynamic = "force-dynamic"
+
 export default async function JournalPage({
   params,
 }: {
@@ -13,7 +12,7 @@ export default async function JournalPage({
 }) {
   const { bookId } = await params
 
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await getSession()
   if (!session) redirect("/login")
 
   const [book] = await db

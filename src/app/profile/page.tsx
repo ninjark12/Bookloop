@@ -1,14 +1,13 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/get-session";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import ProfileClient from "@/components/ProfileClient";
 import { getStreakCount } from "@/lib/streak";
-export const dynamic = "force-dynamic"
+
 export default async function ProfilePage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) redirect("/login");
 
   const [[user], streakCount] = await Promise.all([

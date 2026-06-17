@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/db"
 import { books, readingProgress } from "@/db/schema"
 import { eq, InferSelectModel } from "drizzle-orm"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getSession } from "@/lib/get-session"
 import { z } from "zod"
-
-export const dynamic = "force-dynamic"
 
 const addBookSchema = z.object({
   bookId: z.string().uuid().optional(),
@@ -20,7 +17,7 @@ const addBookSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

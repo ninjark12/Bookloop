@@ -4,8 +4,7 @@
 // If bookId and chapter are present, redirect straight to the book journal
 // with a pre-fill hint the client component can pick up.
 
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/get-session";
 import { redirect } from "next/navigation";
 
 export default async function JournalIndexPage({
@@ -13,7 +12,7 @@ export default async function JournalIndexPage({
 }: {
   searchParams: Promise<{ bookId?: string; chapter?: string; source?: string; title?: string }>;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) redirect("/login");
 
   const params = await searchParams;

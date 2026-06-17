@@ -1,10 +1,9 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/get-session";
 import { redirect } from "next/navigation";
 import FeedClient from "@/components/FeedClient";
-export const dynamic = "force-dynamic"
+
 export default async function FeedPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) redirect("/login");
 
   return <FeedClient />;

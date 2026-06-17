@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { assignDiscriminator } from "@/lib/assign-discriminator";
-export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest) {
   try {

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { readingProgress, journalEntries } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-export const dynamic = "force-dynamic"
+
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

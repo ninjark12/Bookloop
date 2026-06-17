@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-export const dynamic = "force-dynamic"
+
 export async function PATCH(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

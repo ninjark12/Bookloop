@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { journalEntries, readingProgress } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { updateStreak, toLocalDateStr } from "@/lib/streak";
 import { redis, keys } from "@/lib/redis";
-export const dynamic = "force-dynamic"
+
 const VALID_SCOPES = ["CHAPTER", "RANGE", "WHOLE_BOOK"] as const;
 type Scope = (typeof VALID_SCOPES)[number];
 
@@ -16,7 +15,7 @@ type Scope = (typeof VALID_SCOPES)[number];
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -141,7 +140,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -203,7 +202,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

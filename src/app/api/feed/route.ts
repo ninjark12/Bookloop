@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import {
   journalEntries,
@@ -14,7 +13,6 @@ import {
 import { and, eq, inArray, desc, or } from "drizzle-orm";
 import { getPostsForAuthors } from "@/lib/gator-client";
 import { getSpoilerTags } from "@/lib/bedrock";
-export const dynamic = "force-dynamic"
 
 function isSpoiler(entryChapterEnd: number, viewerBookStatus: string, viewerChapter: number | null): boolean {
   if (viewerBookStatus === "READ") {
@@ -43,12 +41,7 @@ type FriendEntry = {
 
 export async function GET(req: NextRequest) {
   try {
-    let session = null;
-    try {
-      session = await auth.api.getSession({ headers: await headers() });
-    } catch (e) {
-      console.error("[GET /api/feed] getSession failed:", e);
-    }
+    const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

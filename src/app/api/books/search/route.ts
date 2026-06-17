@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/db"
 import { sql } from "drizzle-orm"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getSession } from "@/lib/get-session"
 import { searchOpenLibraryCached } from "@/lib/book-search"
-
-export const dynamic = "force-dynamic"
 
 // ts_rank sits in [0, 1]; require a meaningful match before skipping OL.
 const LOCAL_THRESHOLD = 0.1
@@ -41,7 +38,7 @@ type LocalRow = {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

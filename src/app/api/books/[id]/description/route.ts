@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/db"
 import { books } from "@/db/schema"
 import { eq } from "drizzle-orm"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getSession } from "@/lib/get-session"
 import { fetchBookDescription } from "@/lib/book-search"
-
-export const dynamic = "force-dynamic"
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -14,7 +11,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

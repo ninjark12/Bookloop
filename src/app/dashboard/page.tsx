@@ -1,14 +1,13 @@
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getSession } from "@/lib/get-session"
 import { redirect } from "next/navigation"
 import { db } from "@/db"
 import { readingProgress, books } from "@/db/schema"
 import { eq, desc } from "drizzle-orm"
 import DashboardClient from "@/components/DashboardClient"
 import { getStreakCount } from "@/lib/streak"
-export const dynamic = "force-dynamic"
+
 export default async function Dashboard() {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await getSession()
   if (!session) redirect("/login")
 
   const [userBooks, streak] = await Promise.all([

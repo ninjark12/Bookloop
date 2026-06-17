@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getSession } from "@/lib/get-session"
 import { fetchBookDescription } from "@/lib/book-search"
 import { keys, getJSON, setJSON, TTL } from "@/lib/redis"
 
-export const dynamic = "force-dynamic"
-
 export async function GET(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

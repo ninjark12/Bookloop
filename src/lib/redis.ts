@@ -37,6 +37,7 @@ export const keys = {
   feed: (userId: string) => `feed:${userId}`,
   rateLimit: (userId: string, endpoint: string) => `rl:${endpoint}:${userId}`,
   progress: (userId: string, bookId: string) => `progress:${userId}:${bookId}`,
+  session: (token: string) => `session:${token}`,
 } as const;
 
 // ─── TTL constants (seconds) ──────────────────────────────────

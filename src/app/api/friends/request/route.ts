@@ -3,7 +3,6 @@ import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { friendRequests, users } from "@/db/schema";
 import { and, eq, or } from "drizzle-orm";
-export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {

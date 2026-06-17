@@ -389,8 +389,7 @@ function Notebook({ isMobile, notebookRef, bookSpreadRef, onClick, userName }: {
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "clamp(20px,4vw,44px)", background: "var(--primary)", borderRadius: "6px 0 0 6px", display: "flex", flexDirection: "column", justifyContent: "space-around", alignItems: "center", padding: "clamp(12px,3vh,40px) 0" }}>
               {[0, 1, 2, 3, 4, 5, 6, 7].map(i => <div key={i} style={{ width: "clamp(3px,0.7vw,7px)", height: "clamp(3px,0.7vw,7px)", borderRadius: "50%", background: "var(--primary-foreground)", opacity: 0.5 }} />)}
             </div>
-            {/* Spine clearance matches spine width exactly so lines go edge-to-edge
-                and centered text is centered over the visible page, not behind the spine */}
+
             <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "clamp(1.25rem,3vh,3rem) clamp(1rem,2.5vw,2.5rem) 1rem clamp(20px,4vw,44px)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "clamp(4px,1.5vh,14px)" }}>
                 <span style={{ fontSize: "clamp(15px,2.5vw,26px)", fontWeight: 700, color: "var(--primary)", fontFamily: "var(--font-display)" }}>
@@ -480,15 +479,20 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
   const [books, setBooks] = useState<Book[]>(sorted);
   const [statusModal, setStatusModal] = useState<Book | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const [booksVisible, setBooksVisible] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === undefined) return true;
+    return !shouldShowNotebook();
+  });
+  const [booksVisible, setBooksVisible] = useState(() => {
+    if (typeof window === undefined) return true;
+    return !shouldShowNotebook();
+  });
   const [reducedMotion, setReducedMotion] = useState(false);
 
   const notebookRef = useRef<HTMLButtonElement | null>(null);
   const bookSpreadRef = useRef<HTMLDivElement | null>(null);
   const tallyRefs = useRef<SVGLineElement[]>([]);
 
-  // Lock body scroll while dashboard is open so the fixed layout is the only scroll context
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -499,7 +503,6 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion:reduce)");
     setReducedMotion(mq.matches);
-    if (!shouldShowNotebook()) { setIsOpen(true); setBooksVisible(true); }
   }, []);
 
   useEffect(() => {

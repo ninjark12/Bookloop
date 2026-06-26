@@ -36,24 +36,26 @@ export async function fetchBookDescription(olKey: string): Promise<string | null
   }
 }
 
-export async function searchOpenLibraryCached(rawQuery: string): Promise<BookSearchResult[]> {
+export async function searchOpenLibraryCached(
+  rawQuery: string,
+): Promise<{ results: BookSearchResult[]; cacheHit: boolean }> {
   const query = rawQuery.trim();
-  if (query.length < 2) return [];
+  if (query.length < 2) return { results: [], cacheHit: false };
 
   const cacheKey = keys.bookSearch(query);
   const cached = await getJSON<BookSearchResult[]>(cacheKey);
-  if (cached) return cached;
+  if (cached) return { results: cached, cacheHit: true };
 
   let results: BookSearchResult[];
   try {
     results = await fetchOpenLibrary(query);
   } catch (err) {
     console.error("[book-search] OL fetch failed:", (err as Error).message);
-    return [];
+    return { results: [], cacheHit: false };
   }
 
   if (results.length > 0) await setJSON(cacheKey, results, TTL.BOOK_SEARCH);
-  return results;
+  return { results, cacheHit: false };
 }
 
 async function fetchOpenLibrary(query: string): Promise<BookSearchResult[]> {

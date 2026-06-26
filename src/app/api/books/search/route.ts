@@ -78,28 +78,30 @@ export async function GET(request: NextRequest) {
     const enoughHits = localRows.length >= 3
 
     if (best >= LOCAL_THRESHOLD && enoughHits) {
-      return NextResponse.json({
-        results: localRows.map((r) => ({ ...r, source: "local" as const })),
-        source: "local",
-      })
+      return NextResponse.json(
+        { results: localRows.map((r) => ({ ...r, source: "local" as const })), source: "local" },
+        { headers: { "x-redis-cache": "HIT" } },
+      )
     }
 
     // Weak local results — augment with cached OL, dedupe by ol_key
-    const ol = await searchOpenLibraryCached(q)
+    const { results: ol, cacheHit } = await searchOpenLibraryCached(q)
     const localOlKeys = new Set(localRows.map((r) => r.olKey).filter(Boolean))
     const olDeduped = ol
       .filter((o) => !localOlKeys.has(o.olKey))
       .map((o) => ({ id: null, ...o }))
       .sort((a, b) => olScore(q, b.title, b.author) - olScore(q, a.title, a.author))
 
-
-    return NextResponse.json({
-      results: [
-        ...localRows.map((r) => ({ ...r, source: "local" as const })),
-        ...olDeduped,
-      ],
-      source: localRows.length > 0 ? "mixed" : "openlibrary",
-    })
+    return NextResponse.json(
+      {
+        results: [
+          ...localRows.map((r) => ({ ...r, source: "local" as const })),
+          ...olDeduped,
+        ],
+        source: localRows.length > 0 ? "mixed" : "openlibrary",
+      },
+      { headers: { "x-redis-cache": cacheHit ? "HIT" : "MISS" } },
+    )
   } catch (err) {
     console.error("[search] error:", (err as Error).message)
     return NextResponse.json({ error: "Search failed" }, { status: 500 })

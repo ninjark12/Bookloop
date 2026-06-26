@@ -113,7 +113,7 @@ export default function JournalPageClient({
         if (editMode) { setEditMode(false); setEditError(""); return; }
         if (selectedEntry) { setSelectedEntry(null); return; }
       }
-      if (e.shiftKey && e.key === "Enter") {
+      if (e.ctrlKey && e.key === "Enter") {
         e.preventDefault();
         if (showForm) handleSubmit();
         else if (editMode) handleEditSave();
@@ -514,6 +514,8 @@ export default function JournalPageClient({
         </div>
       );
     }
+
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {entries.sort((a, b) => (b.chapterEnd ?? 0) - (a.chapterEnd ?? 0)).map((entry) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { BookOpen, Newspaper, Users, RefreshCw, ExternalLink, Eye, EyeOff, UserPlus, X, Search, Check } from "lucide-react";
@@ -56,7 +56,8 @@ type SearchedUser = {
 type FeedData = {
   friends: FriendEntry[];
   authorNews: AuthorPost[];
-  authorNewsPages: number;
+  nextFriendsCursor: string | null;
+  nextGatorCursor: string | null;
   friendsCount: number;
   followedAuthorsCount: number;
 };
@@ -505,10 +506,15 @@ function EmptyNews() {
 export default function FeedClient() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("friends");
-  const [data, setData] = useState<FeedData | null>(null);
+  const [friends, setFriends] = useState<FriendEntry[]>([]);
+  const [authorNews, setAuthorNews] = useState<AuthorPost[]>([]);
+  const [nextFriendsCursor, setNextFriendsCursor] = useState<string | null>(null);
+  const [nextGatorCursor, setNextGatorCursor] = useState<string | null>(null);
+  const [friendsCount, setFriendsCount] = useState(0);
+  const [followedAuthorsCount, setFollowedAuthorsCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [page, setPage] = useState(0);
 
   // Pending friend requests — fetched separately so they can refresh independently
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -526,21 +532,68 @@ export default function FeedClient() {
   const [sendStatus, setSendStatus] = useState<Record<string, "idle" | "sending" | "sent" | "error">>({});
   const [sendError, setSendError] = useState<Record<string, string>>({});
 
-  const fetchFeed = useCallback(async (p = 0) => {
-    setLoading(true);
+  const friendsSentinelRef = useRef<HTMLDivElement | null>(null);
+  const newsSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchFeed = useCallback(async (opts: {
+    friendsCursor?: string;
+    gatorCursor?: string;
+    append?: boolean;
+  } = {}) => {
+    const { friendsCursor, gatorCursor, append = false } = opts;
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/feed?page=${p}`);
+      const params = new URLSearchParams();
+      if (friendsCursor) params.set("friendsCursor", friendsCursor);
+      if (gatorCursor) params.set("gatorCursor", gatorCursor);
+      const res = await fetch(`/api/feed?${params}`);
       if (!res.ok) throw new Error("Failed to load feed");
       const json: FeedData = await res.json();
-      setData(json);
-      setPage(p);
+      if (append && friendsCursor) {
+        setFriends((prev) => [...prev, ...json.friends]);
+      } else if (append && gatorCursor) {
+        setAuthorNews((prev) => [...prev, ...json.authorNews]);
+      } else {
+        setFriends(json.friends);
+        setAuthorNews(json.authorNews);
+        setFriendsCount(json.friendsCount);
+        setFollowedAuthorsCount(json.followedAuthorsCount);
+      }
+      setNextFriendsCursor(json.nextFriendsCursor);
+      setNextGatorCursor(json.nextGatorCursor);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!nextFriendsCursor || loadingMore) return;
+    const el = friendsSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) fetchFeed({ friendsCursor: nextFriendsCursor, append: true }); },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nextFriendsCursor, loadingMore, fetchFeed]);
+
+  useEffect(() => {
+    if (!nextGatorCursor || loadingMore) return;
+    const el = newsSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) fetchFeed({ gatorCursor: nextGatorCursor, append: true }); },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nextGatorCursor, loadingMore, fetchFeed]);
 
   const fetchPendingRequests = useCallback(async () => {
     try {
@@ -554,7 +607,7 @@ export default function FeedClient() {
   }, []);
 
   useEffect(() => {
-    fetchFeed(0);
+    fetchFeed({});
     fetchPendingRequests();
   }, [fetchFeed, fetchPendingRequests]);
 
@@ -570,7 +623,7 @@ export default function FeedClient() {
       // Remove from pending list immediately (optimistic)
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
       // If accepted, re-fetch feed so their entries now appear
-      if (action === "accept") fetchFeed(0);
+      if (action === "accept") { setFriends([]); setAuthorNews([]); fetchFeed({}); }
     } finally {
       setRequestActionId(null);
     }
@@ -656,7 +709,7 @@ export default function FeedClient() {
           <button
             type="button"
             aria-label="Refresh feed"
-            onClick={() => fetchFeed(page)}
+            onClick={() => { setFriends([]); setAuthorNews([]); fetchFeed({}); }}
             disabled={loading}
             style={{
               background: "none", border: "0.5px solid var(--border)",
@@ -712,12 +765,12 @@ export default function FeedClient() {
           >
             <Icon size={13} aria-hidden="true" />
             {label}
-            {id === "friends" && data && data.friendsCount > 0 && (
+            {id === "friends" && friendsCount > 0 && (
               <span style={{
                 fontSize: "10px", background: "color-mix(in srgb, var(--primary) 15%, transparent)",
                 color: "var(--primary)", borderRadius: "10px", padding: "1px 6px",
               }}>
-                {data.friendsCount}
+                {friendsCount}
               </span>
             )}
           </button>
@@ -732,7 +785,7 @@ export default function FeedClient() {
       )}
 
       {/* Loading skeleton */}
-      {loading && !data && (
+      {loading && friends.length === 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {[1, 2, 3].map((i) => (
             <div key={i} style={{
@@ -823,61 +876,42 @@ export default function FeedClient() {
       )}
 
       {/* Friends tab */}
-      {!loading && data && tab === "friends" && (
+      {!loading && tab === "friends" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {data.friends.length === 0 ? (
+          {friends.length === 0 ? (
             <EmptyFriends />
           ) : (
-            data.friends.map((entry) => (
-              <FriendEntryCard
-                key={entry.id}
-                entry={entry}
-                onBookClick={(bookId) => setBookModalId(bookId)}
-              />
-            ))
+            <>
+              {friends.map((entry) => (
+                <FriendEntryCard
+                  key={entry.id}
+                  entry={entry}
+                  onBookClick={(bookId) => setBookModalId(bookId)}
+                />
+              ))}
+              {nextFriendsCursor && (
+                <div ref={friendsSentinelRef} style={{ height: "32px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {loadingMore && <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Loading…</span>}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
       {/* Author news tab */}
-      {!loading && data && tab === "news" && (
+      {!loading && tab === "news" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {data.authorNews.length === 0 ? (
+          {authorNews.length === 0 ? (
             <EmptyNews />
           ) : (
             <>
-              {data.authorNews.map((post) => (
+              {authorNews.map((post) => (
                 <AuthorNewsCard key={post.id} post={post} />
               ))}
-
-              {/* Pagination */}
-              {data.authorNewsPages > 1 && (
-                <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "1rem" }}>
-                  <button type="button" disabled={page === 0}
-                    onClick={() => fetchFeed(page - 1)}
-                    style={{
-                      padding: "6px 14px", fontSize: "12px",
-                      border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
-                      background: "var(--muted)", color: "var(--muted-foreground)",
-                      cursor: page === 0 ? "not-allowed" : "pointer",
-                      opacity: page === 0 ? 0.4 : 1, fontFamily: "inherit",
-                    }}>
-                    Prev
-                  </button>
-                  <span style={{ fontSize: "12px", color: "var(--muted-foreground)", alignSelf: "center" }}>
-                    {page + 1} / {data.authorNewsPages}
-                  </span>
-                  <button type="button" disabled={page >= data.authorNewsPages - 1}
-                    onClick={() => fetchFeed(page + 1)}
-                    style={{
-                      padding: "6px 14px", fontSize: "12px",
-                      border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
-                      background: "var(--muted)", color: "var(--muted-foreground)",
-                      cursor: page >= data.authorNewsPages - 1 ? "not-allowed" : "pointer",
-                      opacity: page >= data.authorNewsPages - 1 ? 0.4 : 1, fontFamily: "inherit",
-                    }}>
-                    Next
-                  </button>
+              {nextGatorCursor && (
+                <div ref={newsSentinelRef} style={{ height: "32px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {loadingMore && <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Loading…</span>}
                 </div>
               )}
             </>

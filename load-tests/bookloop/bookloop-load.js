@@ -54,8 +54,8 @@ export default function () {
   searchLatency.add(searchRes.timings.duration);
   checkOk(searchRes, "book-search");
 
-  // Count cache behavior from the X-Cache header added in Step 1
-  const cacheHeader = searchRes.headers["x-redis-cache"];
+  // Count cache behavior from the x-redis-cache header
+  const cacheHeader = searchRes.headers["X-Redis-Cache"];
   if (cacheHeader === "HIT")  cacheHits.add(1);
   if (cacheHeader === "MISS") cacheMisses.add(1);
 

@@ -63,9 +63,7 @@ export type GatorAuthor = {
 
 export type GatorPostsResponse = {
   content: GatorPost[];
-  totalPages: number;
-  totalElements: number;
-  page: number;
+  hasMore: boolean;
 };
 
 // -- Internal helpers --
@@ -155,31 +153,28 @@ export async function registerAuthor(
 }
 
 // Fetch paginated news posts for a list of Gator author IDs.
+// Uses cursor-based pagination: afterId is the UUID of the last seen post.
 // Falls back to an empty result rather than throwing if Gator is unavailable.
 export async function getPostsForAuthors(
   gatorAuthorIds: string[],
-  page = 0,
+  afterId?: string,
   size = 20
 ): Promise<GatorPostsResponse> {
-  const empty: GatorPostsResponse = {
-    content: [],
-    totalPages: 0,
-    totalElements: 0,
-    page: 0,
-  };
+  const empty: GatorPostsResponse = { content: [], hasMore: false };
 
   if (gatorAuthorIds.length === 0) return empty;
 
-  // Validate IDs are UUID-shaped before sending -- prevents accidental injection
   const safeIds = gatorAuthorIds.filter((id) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   );
 
   if (safeIds.length === 0) return empty;
 
-  const result = await gatorFetch<GatorPostsResponse>(
-    `/api/posts/authors?ids=${safeIds.join(",")}&page=${page}&size=${size}`,
-    // Cache for 5 minutes -- matches Gator's RSS fetch interval
+  const params = new URLSearchParams({ ids: safeIds.join(","), size: String(size) });
+  if (afterId) params.set("afterId", afterId);
+
+  const result = await gatorFetch<{ content: GatorPost[]; hasMore: boolean }>(
+    `/api/posts/authors?${params}`,
     { cache: "force-cache", next: { revalidate: 300 } } as RequestInit
   );
 

@@ -27,7 +27,7 @@ export default function () {
 
   const res = http.get(`${BASE}/api/books/search?q=${q}`, { headers: h });
 
-  const cacheHeader = res.headers["x-redis-cache"];
+  const cacheHeader = res.headers["X-Redis-Cache"];
   if (cacheHeader === "HIT") {
     cacheHits.add(1);
     warmLatency.add(res.timings.duration);

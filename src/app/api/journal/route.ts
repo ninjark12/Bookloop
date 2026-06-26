@@ -5,6 +5,19 @@ import { journalEntries, readingProgress } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { updateStreak, toLocalDateStr } from "@/lib/streak";
 import { redis, keys } from "@/lib/redis";
+import { getSpoilerTags } from "@/lib/bedrock";
+
+function computeAndStoreTags(entryId: string, content: string) {
+  void getSpoilerTags(content)
+    .then((tags) => {
+      if (tags.length > 0) {
+        return db.update(journalEntries)
+          .set({ spoilerTags: tags })
+          .where(eq(journalEntries.id, entryId));
+      }
+    })
+    .catch((e) => console.error("[journal] spoilerTags computation failed:", e));
+}
 
 const VALID_SCOPES = ["CHAPTER", "RANGE", "WHOLE_BOOK"] as const;
 type Scope = (typeof VALID_SCOPES)[number];
@@ -112,6 +125,11 @@ export async function POST(req: NextRequest) {
       console.error("[POST /api/journal] furthestChapter update failed:", e);
     }
 
+    // Compute spoiler tags in the background for public entries
+    if (isPublic && content.trim().length >= 20) {
+      computeAndStoreTags(entry.id, content.trim());
+    }
+
     // Update streak — only when the day has actually changed.
     // Check the Redis cache here (at the write site) so updateStreak is only
     // called when a real journal entry changes the calendar day.
@@ -172,6 +190,7 @@ export async function PATCH(req: NextRequest) {
       .set({
         content: content.trim(),
         updatedAt: new Date(),
+        spoilerTags: null, // recompute below
         ...(isPublic !== undefined && { isPublic }),
       })
       .where(
@@ -187,6 +206,10 @@ export async function PATCH(req: NextRequest) {
         { error: "Entry not found or does not belong to you" },
         { status: 404 }
       );
+    }
+
+    if ((updated.isPublic ?? false) && content.trim().length >= 20) {
+      computeAndStoreTags(updated.id, content.trim());
     }
 
     return NextResponse.json({ entry: updated });

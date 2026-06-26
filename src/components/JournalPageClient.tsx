@@ -192,6 +192,7 @@ export default function JournalPageClient({
       createdAt: new Date(),
       updatedAt: new Date(),
       writingPrompt: null,
+      spoilerTags: null,
       optimistic: true,
     };
 

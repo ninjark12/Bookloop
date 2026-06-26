@@ -137,8 +137,10 @@ export const journalEntries = pgTable("journal_entries", {
   content: text().notNull(),
   writingPrompt: text("writing_prompt"),
   isPublic: boolean("is_public").default(false),
+  spoilerTags: text("spoiler_tags").array(),
 }, (t) => [
   index("journal_entries_user_book_idx").on(t.userId, t.bookId),
+  index("journal_entries_feed_idx").on(t.userId, t.createdAt, t.id),
 ])
 
 //  Friend requests (mutual friendship model)

@@ -17,6 +17,10 @@ const HALF = COLS * ROWS;       // 6 per page half
 const PER_SPREAD = HALF * 2;          // 12 per spread
 const PAGE_0_BOOKS = PER_SPREAD - 1;    // 11 (slot 0 = AddBookCard)
 
+const MOBILE_ROWS = 3;
+const MOBILE_PAGE_0_BOOKS = 5; // first mobile screen: AddBook + 5 books
+const MOBILE_PER_PAGE = 6; // later screens: 6 books per page
+
 const SPINE_WIDTH = 32;
 
 // -- Types -------------------------------------------------------------------
@@ -84,7 +88,7 @@ function formatProgress(book: Book): string {
 }
 
 function useIsMobile(bp = 768) {
-  const [m, setM] = useState(false);
+  const [m, setM] = useState<boolean | null>(null);
   useEffect(() => {
     const chk = () => setM(window.innerWidth < bp);
     chk();
@@ -132,6 +136,27 @@ function getPage(
   const left = slice.slice(0, HALF).map((b): PageItem => ({ type: "book", book: b }));
   const right = slice.slice(HALF).map((b): PageItem => ({ type: "book", book: b }));
   return { left, right, totalPages };
+}
+
+function getMobilePage(
+  books: Book[],
+  page: number
+): { items: PageItem[]; totalPages: number } {
+  const n = books.length;
+  const overflow = Math.max(0, n - MOBILE_PAGE_0_BOOKS);
+  const totalPages = 1 + Math.ceil(overflow / MOBILE_PER_PAGE);
+
+  if (page === 0) {
+    const items: PageItem[] = [
+      { type: "add" },
+      ...books.slice(0, MOBILE_PAGE_0_BOOKS).map((b): PageItem => ({ type: "book", book: b })),
+    ];
+    return { items, totalPages };
+  }
+
+  const start = MOBILE_PAGE_0_BOOKS + (page - 1) * MOBILE_PER_PAGE;
+  const items = books.slice(start, start + MOBILE_PER_PAGE).map((b): PageItem => ({ type: "book", book: b }));
+  return { items, totalPages };
 }
 
 // -- Status modal ------------------------------------------------------------
@@ -204,10 +229,11 @@ function StatusModal({ book, onClose, onSelect, onDelete }: {
 
 // -- Cards -------------------------------------------------------------------
 
-function BookCard({ book, onNavigate, onStatusClick }: {
+function BookCard({ book, onNavigate, onStatusClick, compact = false }: {
   book: Book;
   onNavigate: () => void;
   onStatusClick: (e: React.MouseEvent) => void;
+  compact?: boolean;
 }) {
   const [hov, setHov] = useState(false);
   return (
@@ -223,7 +249,7 @@ function BookCard({ book, onNavigate, onStatusClick }: {
         background: "var(--background)",
         border: `0.5px solid ${hov ? "var(--primary)" : "var(--border)"}`,
         borderRadius: "var(--radius)",
-        padding: "0.75rem",
+        padding: compact ? "0.55rem" : "0.75rem",
         transform: hov ? "translateY(-2px)" : "translateY(0)",
         transition: "border-color 0.2s,transform 0.2s",
         display: "flex", flexDirection: "column",
@@ -231,10 +257,10 @@ function BookCard({ book, onNavigate, onStatusClick }: {
         userSelect: "none",
       }}
     >
-      <div style={{ width: "100%", height: "3px", borderRadius: "2px", background: statusColor[book.status], marginBottom: "8px", flexShrink: 0 }} />
+      <div style={{ width: "100%", height: compact ? "2px" : "3px", borderRadius: "2px", background: statusColor[book.status], marginBottom: compact ? "6px" : "8px", flexShrink: 0 }} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px", gap: "6px" }}>
-        <p style={{ fontFamily: "var(--font-display)", fontSize: "15px", fontWeight: 700, color: "var(--foreground)", lineHeight: 1.25, flex: 1, margin: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: compact ? "3px" : "4px", gap: "6px" }}>
+        <p style={{ fontFamily: "var(--font-display)", fontSize: compact ? "13px" : "15px", fontWeight: 700, color: "var(--foreground)", lineHeight: 1.2, flex: 1, margin: 0 }}>
           {book.title}
         </p>
         {/* stopPropagation prevents the card click from firing when changing status */}
@@ -243,9 +269,9 @@ function BookCard({ book, onNavigate, onStatusClick }: {
           aria-label={`Status: ${STATUS_LABELS[book.status]}. Click to change.`}
           onClick={(e) => { e.stopPropagation(); onStatusClick(e); }}
           style={{
-            fontSize: "9px", fontWeight: 600, letterSpacing: "0.07em",
+            fontSize: compact ? "8px" : "9px", fontWeight: 600, letterSpacing: "0.07em",
             color: statusColor[book.status], background: statusBg[book.status],
-            borderRadius: "4px", padding: "3px 6px", border: "none",
+            borderRadius: "4px", padding: compact ? "2px 5px" : "3px 6px", border: "none",
             cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
           }}
         >
@@ -253,42 +279,43 @@ function BookCard({ book, onNavigate, onStatusClick }: {
         </button>
       </div>
 
-      <p style={{ fontSize: "12px", color: "var(--muted-foreground)", margin: "0 0 4px", fontStyle: "italic" }}>
+      <p style={{ fontSize: compact ? "11px" : "12px", color: "var(--muted-foreground)", margin: "0 0 4px", fontStyle: "italic" }}>
         {book.author}
       </p>
-      <p style={{ fontSize: "12px", color: "var(--primary)", margin: 0, fontWeight: 500 }}>
+      <p style={{ fontSize: compact ? "11px" : "12px", color: "var(--primary)", margin: 0, fontWeight: 500 }}>
         {formatProgress(book)}
       </p>
     </div>
   );
 }
 
-function AddCard({ onClick }: { onClick: () => void }) {
+function AddCard({ onClick, compact = false }: { onClick: () => void; compact?: boolean }) {
   const [hov, setHov] = useState(false);
   return (
     <button type="button" onClick={onClick} aria-label="Add a book"
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: "100%", height: "100%", fontFamily: "inherit", background: "var(--background)", border: `0.5px dashed ${hov ? "var(--primary)" : "var(--border)"}`, borderRadius: "var(--radius)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px", transform: hov ? "translateY(-2px)" : "translateY(0)", transition: "border-color 0.2s,transform 0.2s", cursor: "pointer" }}>
-      <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Plus size={14} aria-hidden="true" style={{ color: "var(--muted-foreground)" }} />
+      style={{ width: "100%", height: "100%", fontFamily: "inherit", background: "var(--background)", border: `0.5px dashed ${hov ? "var(--primary)" : "var(--border)"}`, borderRadius: "var(--radius)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: compact ? "6px" : "8px", transform: hov ? "translateY(-2px)" : "translateY(0)", transition: "border-color 0.2s,transform 0.2s", cursor: "pointer" }}>
+      <div style={{ width: compact ? "24px" : "28px", height: compact ? "24px" : "28px", borderRadius: "50%", background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Plus size={compact ? 12 : 14} aria-hidden="true" style={{ color: "var(--muted-foreground)" }} />
       </div>
-      <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0 }}>Add a book</p>
+      <p style={{ fontSize: compact ? "10px" : "11px", color: "var(--muted-foreground)", margin: 0 }}>Add a book</p>
     </button>
   );
 }
 
 // -- Tally band --------------------------------------------------------------
 
-function TallyBand({ streak, refs }: {
+function TallyBand({ streak, refs, compact = false }: {
   streak: number;
   refs: React.MutableRefObject<SVGLineElement[]>;
+  compact?: boolean;
 }) {
   const groups = tallyGroups(streak);
   let idx = 0;
   return (
-    <div style={{ background: "var(--tally-paper)", borderBottom: "0.5px solid var(--border)", padding: "10px 1.5rem", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}
+    <div style={{ background: "var(--tally-paper)", borderBottom: "0.5px solid var(--border)", padding: compact ? "6px 1rem" : "10px 1.5rem", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}
       aria-label={`Reading streak: ${streak} day${streak !== 1 ? "s" : ""}`}>
-      <span aria-hidden="true" style={{ fontSize: "9px", letterSpacing: "0.14em", color: "var(--muted-foreground)", textTransform: "uppercase", marginRight: "12px", whiteSpace: "nowrap" }}>Reading streak</span>
+      <span aria-hidden="true" style={{ fontSize: compact ? "8px" : "9px", letterSpacing: "0.14em", color: "var(--muted-foreground)", textTransform: "uppercase", marginRight: compact ? "8px" : "12px", whiteSpace: "nowrap" }}>Reading streak</span>
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }} aria-hidden="true">
         {groups.map((count, gi) => {
           const tals: number[] = [];
@@ -480,11 +507,11 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
   const [statusModal, setStatusModal] = useState<Book | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [isOpen, setIsOpen] = useState(() => {
-    if (typeof window === undefined) return true;
+    if (typeof window === "undefined") return true;
     return !shouldShowNotebook();
   });
   const [booksVisible, setBooksVisible] = useState(() => {
-    if (typeof window === undefined) return true;
+    if (typeof window === "undefined") return true;
     return !shouldShowNotebook();
   });
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -494,11 +521,16 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
   const tallyRefs = useRef<SVGLineElement[]>([]);
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
-    }
-  }, [isOpen]);
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    window.scrollTo(0, 0);
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion:reduce)");
@@ -517,9 +549,11 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
 
   // Clamp page when books change
   useEffect(() => {
-    const { totalPages } = getPage(books, 0);
-    if (currentPage >= totalPages) setCurrentPage(Math.max(0, totalPages - 1));
-  }, [books.length, currentPage]);
+    const desktopTotalPages = getPage(books, 0).totalPages;
+    const mobileTotalPages = getMobilePage(books, 0).totalPages;
+    const maxPages = isMobile ? mobileTotalPages : desktopTotalPages;
+    if (currentPage >= maxPages) setCurrentPage(Math.max(0, maxPages - 1));
+  }, [books, currentPage, isMobile]);
 
   function handleNotebookClick() {
     if (isOpen) return;
@@ -556,13 +590,31 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
   const handleStatus = (book: Book, e: React.MouseEvent) => { e.stopPropagation(); setStatusModal(book); };
   const handleAddBook = () => router.push("/books/search");
   const prevPage = () => setCurrentPage(p => Math.max(0, p - 1));
-  const nextPage = () => setCurrentPage(p => Math.min(getPage(books, 0).totalPages - 1, p + 1));
 
   const { left, right, totalPages } = getPage(books, currentPage);
-  const mobileItems = [...left, ...right];
+  const { items: mobileItems, totalPages: mobileTotalPages } = getMobilePage(books, currentPage);
+  const totalPagesForLayout = isMobile ? mobileTotalPages : totalPages;
+  const nextPage = () => setCurrentPage(p => Math.min(totalPagesForLayout - 1, p + 1));
+
+  // Mobile rows: dynamic so extra items fill the page, but never fewer than MOBILE_ROWS
+  // so sparse pages (last page with few books) keep the same card height as a full page.
+  const mobileRows = Math.max(MOBILE_ROWS, Math.ceil(mobileItems.length / 2));
+
+  // Gate rendering until useIsMobile resolves — prevents painting the wrong layout
+  // (desktop on mobile) during the first client frame before the effect fires.
+  if (isMobile === null) return null;
 
   return (
-    <div style={{ position: "relative", width: "100%", minHeight: "100vh" }}>
+    <div
+      style={{
+        position: "fixed",
+        top: "64px",
+        left: 0,
+        right: 0,
+        bottom: isMobile ? "56px" : 0,
+        overflow: "hidden",
+      }}
+    >
       {statusModal && (
         <StatusModal book={statusModal} onClose={() => setStatusModal(null)} onSelect={handleStatusSelect} onDelete={handleDeleteBook} />
       )}
@@ -574,32 +626,32 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
       {isOpen && (isMobile ? (
 
         // -- Mobile ----------------------------------------------------------
-        <div style={{ position: "fixed", top: "64px", bottom: "56px", left: 0, right: 0, display: "flex", flexDirection: "column", background: "var(--card)" }}>
-          <TallyBand streak={streak} refs={tallyRefs} />
-          <div style={{ padding: "0.75rem 1.25rem 0.5rem", flexShrink: 0, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", fontWeight: 700, color: "var(--primary)", margin: 0 }}>My reading list</h1>
-            {totalPages > 1 && <span style={{ fontSize: "11px", color: "var(--muted-foreground)" }}>{currentPage + 1} / {totalPages}</span>}
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--card)", overflow: "hidden" }}>
+          <TallyBand streak={streak} refs={tallyRefs} compact />
+          <div style={{ padding: "0.5rem 1rem 0.35rem", flexShrink: 0, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+            <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 700, color: "var(--primary)", margin: 0 }}>My reading list</h1>
+            {totalPagesForLayout > 1 && <span style={{ fontSize: "10px", color: "var(--muted-foreground)" }}>{currentPage + 1} / {totalPagesForLayout}</span>}
           </div>
           <div style={{ height: "1px", background: "var(--primary)", opacity: 0.4, flexShrink: 0 }} />
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0.75rem 1.25rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", alignContent: "start" }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "0.5rem 1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`, gap: "0.45rem", alignContent: "stretch" }}>
             {mobileItems.map((item) =>
               item.type === "add"
-                ? <AddCard key="add" onClick={handleAddBook} />
-                : <BookCard key={item.book.id} book={item.book} onNavigate={() => handleNavigate(item.book.id)} onStatusClick={(e) => handleStatus(item.book, e)} />
+                ? <AddCard key="add" onClick={handleAddBook} compact />
+                : <BookCard key={item.book.id} book={item.book} compact onNavigate={() => handleNavigate(item.book.id)} onStatusClick={(e) => handleStatus(item.book, e)} />
             )}
           </div>
-          {totalPages > 1 && (
-            <div style={{ padding: "0.75rem 1.25rem", flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "0.5px solid var(--border)" }}>
+          {totalPagesForLayout > 1 && (
+            <div style={{ padding: "0.5rem 1rem", flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "0.5px solid var(--border)" }}>
               <button type="button" onClick={prevPage} disabled={currentPage === 0}
-                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", fontSize: "12px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: currentPage === 0 ? "var(--muted-foreground)" : "var(--primary)", cursor: currentPage === 0 ? "not-allowed" : "pointer", opacity: currentPage === 0 ? 0.4 : 1, fontFamily: "inherit" }}>
-                <ChevronLeft size={13} aria-hidden="true" /> Prev
+                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", fontSize: "11px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: currentPage === 0 ? "var(--muted-foreground)" : "var(--primary)", cursor: currentPage === 0 ? "not-allowed" : "pointer", opacity: currentPage === 0 ? 0.4 : 1, fontFamily: "inherit" }}>
+                <ChevronLeft size={12} aria-hidden="true" /> Prev
               </button>
               <div style={{ display: "flex", gap: "6px" }}>
-                {Array.from({ length: totalPages }).map((_, i) => <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: i === currentPage ? "var(--primary)" : "var(--border)" }} />)}
+                {Array.from({ length: totalPagesForLayout }).map((_, i) => <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: i === currentPage ? "var(--primary)" : "var(--border)" }} />)}
               </div>
-              <button type="button" onClick={nextPage} disabled={currentPage >= totalPages - 1}
-                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", fontSize: "12px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: currentPage >= totalPages - 1 ? "var(--muted-foreground)" : "var(--primary)", cursor: currentPage >= totalPages - 1 ? "not-allowed" : "pointer", opacity: currentPage >= totalPages - 1 ? 0.4 : 1, fontFamily: "inherit" }}>
-                Next <ChevronRight size={13} aria-hidden="true" />
+              <button type="button" onClick={nextPage} disabled={currentPage >= totalPagesForLayout - 1}
+                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px", fontSize: "11px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: currentPage >= totalPagesForLayout - 1 ? "var(--muted-foreground)" : "var(--primary)", cursor: currentPage >= totalPagesForLayout - 1 ? "not-allowed" : "pointer", opacity: currentPage >= totalPagesForLayout - 1 ? 0.4 : 1, fontFamily: "inherit" }}>
+                Next <ChevronRight size={12} aria-hidden="true" />
               </button>
             </div>
           )}

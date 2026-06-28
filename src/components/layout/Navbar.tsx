@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, User, LogOut, Sun, Moon, ChevronDown, Settings } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useEffect, useRef, useState } from "react";
+import { useFriendRequests } from "@/components/friends/FriendRequestsProvider";
 
 const links = [
   { href: "/dashboard", label: "Journal" },
@@ -23,18 +24,9 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [pendingCount, setPendingCount] = useState(0);
+  const { pendingCount } = useFriendRequests();
 
   useEffect(() => setMounted(true), []);
-
-  // Re-fetch pending count on every navigation so the badge stays current
-  useEffect(() => {
-    if (!session) return;
-    fetch("/api/friends/requests")
-      .then((r) => r.json())
-      .then((json) => setPendingCount(json.requests?.length ?? 0))
-      .catch(() => { });
-  }, [session, pathname]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

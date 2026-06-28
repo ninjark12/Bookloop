@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
+import { getJSON } from "@/lib/redis";
 import { GET } from "@/app/api/books/search/route";
 import { POST } from "@/app/api/books/add/route";
 
@@ -16,6 +17,10 @@ describe("GET /api/books/search", () => {
 
   function makeReq(q: string) {
     return new NextRequest(`http://localhost/api/books/search?q=${encodeURIComponent(q)}`);
+  }
+
+  function makeReqWithSource(q: string, source: "local" | "openlibrary") {
+    return new NextRequest(`http://localhost/api/books/search?q=${encodeURIComponent(q)}&source=${source}`);
   }
 
   describe("authentication", () => {
@@ -45,24 +50,121 @@ describe("GET /api/books/search", () => {
   });
 
   describe("local DB cache hit", () => {
-    it("returns local results without calling Open Library", async () => {
+    it("returns local results without calling Open Library when DB has at least 5 relevant results", async () => {
       // Route uses db.execute() for raw FTS+trigram SQL.
-      // Needs >= 3 rows with combinedScore >= 0.1 to take the local-only path.
+      // Needs >= 5 relevant rows to take the local-only path for non-ambiguous queries.
+      vi.mocked(db.execute).mockResolvedValueOnce(
+        Array.from({ length: 5 }, (_, i) => ({
+          id: `book-${i + 1}`,
+          olKey: i === 0 ? "/works/OL1" : null,
+          title: i === 0 ? "Words of Radiance" : `Words of Radiance Result ${i + 1}`,
+          author: "Brandon Sanderson",
+          coverUrl: null,
+          publishedYear: 2014 + i,
+          combinedScore: 0.9 - i * 0.01,
+        })),
+      ).mockResolvedValueOnce([
+        { bookId: "book-1", readingStatus: "READING" },
+      ]);
+      const res = await GET(makeReq("words of radiance"));
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.source).toBe("local");
+      expect(data.shouldQueryOpenLibrary).toBe(false);
+      expect(data.results[0].title).toBe("Words of Radiance");
+      expect(data.results[0].readingStatus).toBe("READING");
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+
+    it("uses cached global local search results and hydrates current user status", async () => {
+      vi.mocked(getJSON).mockResolvedValueOnce([
+        { id: "book-1", olKey: "/works/OL1", title: "Words of Radiance", author: "Brandon Sanderson", coverUrl: null, publishedYear: 2014, combinedScore: 0.9 },
+      ]);
+      vi.mocked(db.execute).mockResolvedValueOnce([
+        { bookId: "book-1", readingStatus: "READING" },
+      ]);
+
+      const res = await GET(makeReqWithSource("words of radiance", "local"));
+
+      expect(res.status).toBe(200);
+      expect(db.execute).toHaveBeenCalledTimes(1);
+      const data = await res.json();
+      expect(data.results[0]).toMatchObject({
+        title: "Words of Radiance",
+        readingStatus: "READING",
+      });
+    });
+  });
+
+  describe("Open Library fallback", () => {
+    it("calls Open Library when local DB has fewer than 10 results", async () => {
       vi.mocked(db.execute).mockResolvedValueOnce([
         { id: "book-1", olKey: "/works/OL1", title: "Dune", author: "Frank Herbert", coverUrl: null, publishedYear: 1965, combinedScore: 0.9 },
         { id: "book-2", olKey: null, title: "Dune Messiah", author: "Frank Herbert", coverUrl: null, publishedYear: 1969, combinedScore: 0.7 },
         { id: "book-3", olKey: null, title: "Children of Dune", author: "Frank Herbert", coverUrl: null, publishedYear: 1976, combinedScore: 0.5 },
       ]);
+      vi.mocked(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [
+            { key: "/works/OL1", title: "Dune", author_name: ["Frank Herbert"], cover_i: null, first_publish_year: 1965 },
+            { key: "/works/OL2", title: "Dune: House Atreides", author_name: ["Brian Herbert"], cover_i: null, first_publish_year: 1999 },
+          ],
+        }),
+      });
+
       const res = await GET(makeReq("dune"));
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(fetch)).toHaveBeenCalled();
+      const data = await res.json();
+      expect(data.source).toBe("mixed");
+      expect(data.results.map((book: { olKey: string | null }) => book.olKey)).toEqual([
+        "/works/OL1",
+        null,
+        null,
+        "/works/OL2",
+      ]);
+    });
+
+    it("adds journal status to Open Library results already present in the user's journal", async () => {
+      vi.mocked(db.execute).mockResolvedValueOnce([
+        { id: "book-1", olKey: "/works/OL1", readingStatus: "READING" },
+      ]);
+      vi.mocked(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [{ key: "/works/OL1", title: "Words of Radiance", author_name: ["Brandon Sanderson"], cover_i: null, first_publish_year: 2014 }],
+        }),
+      });
+
+      const res = await GET(makeReqWithSource("words of radiance", "openlibrary"));
+
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.source).toBe("local");
-      expect(data.results[0].title).toBe("Dune");
-      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      expect(data.openLibraryResults[0]).toMatchObject({
+        id: "book-1",
+        olKey: "/works/OL1",
+        readingStatus: "READING",
+      });
     });
-  });
 
-  describe("Open Library fallback", () => {
+    it("returns local results only in local source mode and says whether Open Library is needed", async () => {
+      vi.mocked(db.execute).mockResolvedValueOnce([
+        { id: "book-1", olKey: "/works/OL1", title: "Dune", author: "Frank Herbert", coverUrl: null, publishedYear: 1965, combinedScore: 0.9 },
+      ]);
+
+      const res = await GET(makeReqWithSource("dune", "local"));
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+      const data = await res.json();
+      expect(data.source).toBe("local");
+      expect(data.localResults).toHaveLength(1);
+      expect(data.openLibraryResults).toHaveLength(0);
+      expect(data.shouldQueryOpenLibrary).toBe(true);
+    });
+
     it("calls Open Library when local DB has no results", async () => {
       vi.mocked(db.execute).mockResolvedValueOnce([]);
       vi.mocked(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({

@@ -80,6 +80,7 @@ vi.mock("@/lib/redis", () => ({
   keys: {
     streak: (userId: string) => `streak:${userId}`,
     bookSearch: (q: string) => `book_search:${encodeURIComponent(q)}`,
+    bookLocalSearch: (q: string) => `book_local_search:${encodeURIComponent(q)}`,
     bookDesc: (k: string) => `book_desc:${encodeURIComponent(k)}`,
     feed: (userId: string) => `feed:${userId}`,
     rateLimit: (userId: string, ep: string) => `rl:${ep}:${userId}`,
@@ -87,6 +88,7 @@ vi.mock("@/lib/redis", () => ({
   },
   TTL: {
     BOOK_SEARCH: 3600,
+    BOOK_LOCAL_SEARCH: 300,
     BOOK_DESC: 604800,
     STREAK: 90000,
     FEED: 60,

@@ -344,7 +344,7 @@ export default function JournalPageClient({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <label htmlFor="entry-public" style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
             <input id="entry-public" type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
-            <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Public</span>
+            <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Show to Friends</span>
           </label>
           <div style={{ display: "flex", gap: "8px" }}>
             <button type="button" aria-label="Cancel new entry"
@@ -432,7 +432,7 @@ export default function JournalPageClient({
             {editError && <p role="alert" style={{ fontSize: "12px", color: "var(--destructive)", margin: 0 }}>{editError}</p>}
             <label htmlFor="edit-entry-public" style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
               <input id="edit-entry-public" type="checkbox" checked={editIsPublic} onChange={(e) => setEditIsPublic(e.target.checked)} />
-              <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Public</span>
+              <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>Show to Friends</span>
             </label>
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexShrink: 0 }}>
               <button type="button" aria-label="Cancel edit" onClick={() => { setEditMode(false); setEditError(""); }}

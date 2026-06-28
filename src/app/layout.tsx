@@ -7,6 +7,7 @@ import Footer from "@/components/layout/Footer";
 import BottomNav from "@/components/layout/BottomNav";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "next-themes";
+import { FriendRequestsProvider } from "@/components/friends/FriendRequestsProvider";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -31,10 +32,12 @@ export default function RootLayout({
     <html lang="en" className={cn(playfair.variable, sourceSerif.variable)} suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground min-h-screen flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Navbar />
-          <main className="flex-1 pt-16 pb-14 md:pb-0">{children}</main>
-          <div className="hidden md:block"><Footer /></div>
-          <BottomNav />
+          <FriendRequestsProvider>
+            <Navbar />
+            <main className="flex-1 pt-16 pb-14 md:pb-0">{children}</main>
+            <div className="hidden md:block"><Footer /></div>
+            <BottomNav />
+          </FriendRequestsProvider>
         </ThemeProvider>
         <Analytics />
       </body>

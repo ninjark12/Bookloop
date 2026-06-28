@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, Search, Users, User } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { useEffect, useState } from "react";
+import { useFriendRequests } from "@/components/friends/FriendRequestsProvider";
 
 const items = [
   { href: "/dashboard", label: "Journal", icon: BookOpen },
@@ -16,15 +16,7 @@ const items = [
 export default function BottomNav() {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
-  const [pendingCount, setPendingCount] = useState(0);
-
-  useEffect(() => {
-    if (!session) return;
-    fetch("/api/friends/requests")
-      .then((r) => r.json())
-      .then((json) => setPendingCount(json.requests?.length ?? 0))
-      .catch(() => { });
-  }, [session, pathname]);
+  const { pendingCount } = useFriendRequests();
 
   if (!session) return null;
 

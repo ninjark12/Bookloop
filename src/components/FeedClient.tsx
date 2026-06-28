@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { BookOpen, Newspaper, Users, RefreshCw, ExternalLink, Eye, EyeOff, UserPlus, X, Search, Check } from "lucide-react";
 import { BookInfoModal } from "@/components/BookInfoModal";
+import { useFriendRequests } from "@/components/friends/FriendRequestsProvider";
 
 type FriendEntry = {
   id: string;
@@ -31,18 +32,6 @@ type AuthorPost = {
   publishedAt: string;
   authorId: string;
   authorName: string;
-};
-
-type PendingRequest = {
-  id: string;
-  createdAt: string;
-  sender: {
-    id: string;
-    name: string | null;
-    displayName: string | null;
-    discriminator: string | null;
-    image: string | null;
-  };
 };
 
 type SearchedUser = {
@@ -516,8 +505,11 @@ export default function FeedClient() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
 
-  // Pending friend requests — fetched separately so they can refresh independently
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const {
+    requests: pendingRequests,
+    invalidateFriendRequests,
+    removeFriendRequest,
+  } = useFriendRequests();
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
 
   // Book info modal state
@@ -595,21 +587,9 @@ export default function FeedClient() {
     return () => observer.disconnect();
   }, [nextGatorCursor, loadingMore, fetchFeed]);
 
-  const fetchPendingRequests = useCallback(async () => {
-    try {
-      const res = await fetch("/api/friends/requests");
-      if (!res.ok) return;
-      const json = await res.json();
-      setPendingRequests(json.requests ?? []);
-    } catch {
-      // Non-critical — silently ignore
-    }
-  }, []);
-
   useEffect(() => {
     fetchFeed({});
-    fetchPendingRequests();
-  }, [fetchFeed, fetchPendingRequests]);
+  }, [fetchFeed]);
 
   async function handleRequestAction(requestId: string, action: "accept" | "decline") {
     setRequestActionId(requestId);
@@ -620,8 +600,8 @@ export default function FeedClient() {
         body: JSON.stringify({ action }),
       });
       if (!res.ok) return;
-      // Remove from pending list immediately (optimistic)
-      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      removeFriendRequest(requestId);
+      void invalidateFriendRequests();
       // If accepted, re-fetch feed so their entries now appear
       if (action === "accept") { setFriends([]); setAuthorNews([]); fetchFeed({}); }
     } finally {
@@ -665,6 +645,12 @@ export default function FeedClient() {
         return;
       }
       setSendStatus((prev) => ({ ...prev, [receiverId]: "sent" }));
+      void invalidateFriendRequests();
+      if (json.status === "accepted") {
+        setFriends([]);
+        setAuthorNews([]);
+        fetchFeed({});
+      }
     } catch {
       setSendStatus((prev) => ({ ...prev, [receiverId]: "error" }));
       setSendError((prev) => ({ ...prev, [receiverId]: "Something went wrong. Please try again." }));

@@ -32,6 +32,8 @@ export const redis: Redis =
 export const keys = {
   bookSearch: (query: string) =>
     `book_search:${encodeURIComponent(query.toLowerCase().trim())}`,
+  bookLocalSearch: (query: string) =>
+    `book_local_search:${encodeURIComponent(query.toLowerCase().trim())}`,
   bookDesc: (olKey: string) => `book_desc:${encodeURIComponent(olKey)}`,
   streak: (userId: string) => `streak:${userId}`,
   feed: (userId: string) => `feed:${userId}`,
@@ -43,6 +45,7 @@ export const keys = {
 // ─── TTL constants (seconds) ──────────────────────────────────
 export const TTL = {
   BOOK_SEARCH: 60 * 60,        // 1 hour
+  BOOK_LOCAL_SEARCH: 60 * 5,   // 5 minutes
   BOOK_DESC: 60 * 60 * 24 * 7, // 7 days
   STREAK: 60 * 60 * 25,        // 25 hours (1h buffer past midnight)
   FEED: 60,                    // 1 minute

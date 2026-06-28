@@ -626,7 +626,7 @@ export default function DashboardClient({ books: initialBooks, streak, userName 
       {isOpen && (isMobile ? (
 
         // -- Mobile ----------------------------------------------------------
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--card)", overflow: "hidden" }}>
+        <div style={{ height: "calc(100dvh - 120px)", inset: 0, display: "flex", flexDirection: "column", background: "var(--card)", overflow: "hidden" }}>
           <TallyBand streak={streak} refs={tallyRefs} compact />
           <div style={{ padding: "0.5rem 1rem 0.35rem", flexShrink: 0, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 700, color: "var(--primary)", margin: 0 }}>My reading list</h1>

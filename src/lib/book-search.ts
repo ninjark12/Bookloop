@@ -9,7 +9,8 @@ export type BookSearchResult = {
   source?: "local" | "openlibrary";
 };
 
-const OL_TIMEOUT_MS = 3500;
+const OL_TIMEOUT_MS = 8000;
+const OL_MAX_RETRIES = 2;
 const OL_ENDPOINT = "https://openlibrary.org/search.json";
 
 type OLDescription = string | { value: string } | undefined | null;
@@ -58,7 +59,7 @@ export async function searchOpenLibraryCached(
   return { results, cacheHit: false };
 }
 
-async function fetchOpenLibrary(query: string): Promise<BookSearchResult[]> {
+async function fetchOpenLibraryOnce(query: string): Promise<BookSearchResult[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OL_TIMEOUT_MS);
   try {
@@ -73,6 +74,19 @@ async function fetchOpenLibrary(query: string): Promise<BookSearchResult[]> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchOpenLibrary(query: string): Promise<BookSearchResult[]> {
+  let lastErr: Error | undefined;
+  for (let attempt = 0; attempt < OL_MAX_RETRIES; attempt++) {
+    try {
+      return await fetchOpenLibraryOnce(query);
+    } catch (err) {
+      lastErr = err as Error;
+      console.warn(`[book-search] OL attempt ${attempt + 1} failed: ${lastErr.message}`);
+    }
+  }
+  throw lastErr;
 }
 
 type OLDoc = {

@@ -77,6 +77,9 @@ export default function JournalPageClient({
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editIsPublic, setEditIsPublic] = useState(false);
+  const [editScope, setEditScope] = useState<"CHAPTER" | "RANGE" | "WHOLE_BOOK">("CHAPTER");
+  const [editChapterStart, setEditChapterStart] = useState(1);
+  const [editChapterEnd, setEditChapterEnd] = useState(1);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -232,15 +235,36 @@ export default function JournalPageClient({
     if (!selectedEntry || !editContent.trim()) return;
     setEditSubmitting(true);
     setEditError("");
+
+    const resolvedStart = editScope === "WHOLE_BOOK" ? 9999 : (editChapterStart || 1);
+    const resolvedEnd =
+      editScope === "WHOLE_BOOK" ? 9999
+        : editScope === "CHAPTER" ? (editChapterStart || 1)
+          : (editChapterEnd || editChapterStart || 1);
+
     try {
       const res = await fetch("/api/journal", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entryId: selectedEntry.id, content: editContent.trim(), isPublic: editIsPublic }),
+        body: JSON.stringify({
+          entryId: selectedEntry.id,
+          content: editContent.trim(),
+          isPublic: editIsPublic,
+          scope: editScope,
+          chapterStart: resolvedStart,
+          chapterEnd: resolvedEnd,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to update entry");
-      const updated = { ...selectedEntry, content: editContent.trim(), isPublic: editIsPublic };
+      const updated = {
+        ...selectedEntry,
+        content: editContent.trim(),
+        isPublic: editIsPublic,
+        scope: editScope,
+        chapterStart: resolvedStart,
+        chapterEnd: resolvedEnd,
+      };
       setEntries(prev => prev.map(e => e.id === selectedEntry.id ? updated : e));
       setSelectedEntry(updated);
       setEditMode(false);
@@ -386,7 +410,19 @@ export default function JournalPageClient({
             </button>
             {!editMode && !confirmDelete && (
               <button type="button" aria-label="Edit this entry"
-                onClick={() => { setEditContent(selectedEntry.content ?? ""); setEditIsPublic(selectedEntry.isPublic ?? false); setEditMode(true); }}
+                onClick={() => {
+                  const entryScope = (selectedEntry.scope as "CHAPTER" | "RANGE" | "WHOLE_BOOK") ?? "CHAPTER";
+                  const isWholeBook = entryScope === "WHOLE_BOOK" || selectedEntry.chapterEnd === 9999;
+                  const resolvedScope = isWholeBook ? "WHOLE_BOOK" : entryScope;
+                  const resolvedStart = isWholeBook ? 1 : (selectedEntry.chapterStart ?? 1);
+                  const resolvedEnd = isWholeBook ? 1 : (selectedEntry.chapterEnd ?? selectedEntry.chapterStart ?? 1);
+                  setEditContent(selectedEntry.content ?? "");
+                  setEditIsPublic(selectedEntry.isPublic ?? false);
+                  setEditScope(resolvedScope);
+                  setEditChapterStart(resolvedStart);
+                  setEditChapterEnd(resolvedEnd);
+                  setEditMode(true);
+                }}
                 style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", fontSize: "11px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: "var(--muted-foreground)", cursor: "pointer" }}>
                 <Pencil size={11} aria-hidden="true" /> Edit
               </button>
@@ -428,6 +464,56 @@ export default function JournalPageClient({
 
         {editMode && (
           <>
+            <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap", flexShrink: 0 }}>
+              {editScope !== "WHOLE_BOOK" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label htmlFor="edit-chapter-start" style={{ fontSize: "10px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {editScope === "CHAPTER" ? "Chapter" : "From chapter"}
+                  </label>
+                  <input id="edit-chapter-start" type="number" value={editChapterStart || ""}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      const num = isNaN(v) ? 0 : v;
+                      setEditChapterStart(num);
+                      if (editScope === "CHAPTER") setEditChapterEnd(num);
+                      else if (v > editChapterEnd) setEditChapterEnd(num);
+                    }}
+                    style={{ width: "72px", padding: "6px 8px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "13px" }}
+                  />
+                </div>
+              )}
+              {editScope === "RANGE" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label htmlFor="edit-chapter-end" style={{ fontSize: "10px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    To chapter
+                  </label>
+                  <input id="edit-chapter-end" type="number" min={editChapterStart || ""} value={editChapterEnd || ""}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      setEditChapterEnd(isNaN(v) ? 0 : v);
+                    }}
+                    style={{ width: "72px", padding: "6px 8px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "13px" }}
+                  />
+                </div>
+              )}
+              {editScope === "WHOLE_BOOK" && (
+                <span style={{ fontSize: "12px", color: "var(--muted-foreground)", alignSelf: "flex-end", paddingBottom: "6px" }}>
+                  Covers entire book
+                </span>
+              )}
+              <div role="group" aria-label="Entry scope" style={{ display: "flex", gap: "4px", marginLeft: "auto" }}>
+                {(["CHAPTER", "RANGE", "WHOLE_BOOK"] as const).map((s) => (
+                  <button key={s} type="button" onClick={() => {
+                    setEditScope(s);
+                    if (s === "CHAPTER") setEditChapterEnd(editChapterStart);
+                    if (s === "WHOLE_BOOK") { setEditChapterStart(1); setEditChapterEnd(1); }
+                  }} aria-pressed={editScope === s}
+                    style={{ fontSize: "10px", padding: "4px 8px", borderRadius: "4px", border: "0.5px solid var(--border)", background: editScope === s ? "var(--primary)" : "var(--muted)", color: editScope === s ? "var(--primary-foreground)" : "var(--muted-foreground)", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    {s === "WHOLE_BOOK" ? "Whole book" : s.charAt(0) + s.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea ref={editTextareaRef} value={editContent} onChange={(e) => setEditContent(e.target.value)}
               aria-label="Edit entry content"
               style={{ flex: 1, width: "100%", minHeight: "200px", padding: "12px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "14px", lineHeight: 1.7, resize: "none", outline: "none", fontFamily: "var(--font-serif)" }}

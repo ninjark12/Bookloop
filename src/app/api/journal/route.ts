@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { journalEntries, readingProgress } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { updateStreak, toLocalDateStr } from "@/lib/streak";
 import { redis, keys } from "@/lib/redis";
 import { getSpoilerTags } from "@/lib/bedrock";
@@ -166,12 +166,18 @@ export async function PATCH(req: NextRequest) {
     let entryId: string;
     let content: string;
     let isPublic: boolean | undefined;
+    let scope: Scope | undefined;
+    let chapterStart: number | undefined;
+    let chapterEnd: number | undefined;
 
     try {
       const body = await req.json();
       entryId = body.entryId;
       content = body.content;
       isPublic = typeof body.isPublic === "boolean" ? body.isPublic : undefined;
+      scope = VALID_SCOPES.includes(body.scope) ? body.scope : undefined;
+      chapterStart = typeof body.chapterStart === "number" ? body.chapterStart : undefined;
+      chapterEnd = typeof body.chapterEnd === "number" ? body.chapterEnd : undefined;
     } catch {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
@@ -185,6 +191,42 @@ export async function PATCH(req: NextRequest) {
 
     const userId = session.user.id;
 
+    let resolvedStart: number | undefined;
+    let resolvedEnd: number | undefined;
+
+    if (scope !== undefined) {
+      resolvedStart = scope === "WHOLE_BOOK" ? 9999 : (chapterStart ?? 1);
+      resolvedEnd =
+        scope === "WHOLE_BOOK" ? 9999
+          : scope === "CHAPTER" ? (chapterStart ?? 1)
+            : (chapterEnd ?? chapterStart ?? 1);
+
+      // Duplicate guard: check no other entry for this book already covers this range
+      const duplicate = await db
+        .select({ id: journalEntries.id })
+        .from(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.userId, userId),
+            ne(journalEntries.id, entryId),
+            eq(journalEntries.chapterStart, resolvedStart),
+            eq(journalEntries.chapterEnd, resolvedEnd)
+          )
+        )
+        .limit(1);
+
+      if (duplicate.length > 0) {
+        const label =
+          scope === "WHOLE_BOOK" ? "the whole book"
+            : scope === "CHAPTER" ? `chapter ${resolvedStart}`
+              : `chapters ${resolvedStart}-${resolvedEnd}`;
+        return NextResponse.json(
+          { error: `You already have an entry for ${label}.` },
+          { status: 409 }
+        );
+      }
+    }
+
     const [updated] = await db
       .update(journalEntries)
       .set({
@@ -192,6 +234,7 @@ export async function PATCH(req: NextRequest) {
         updatedAt: new Date(),
         spoilerTags: null, // recompute below
         ...(isPublic !== undefined && { isPublic }),
+        ...(scope !== undefined && { scope, chapterStart: resolvedStart, chapterEnd: resolvedEnd }),
       })
       .where(
         and(

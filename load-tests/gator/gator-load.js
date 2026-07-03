@@ -1,37 +1,39 @@
 // gator-load.js
-// Purpose: Load test the Author News Aggregator C# service.
-// Run locally first: k6 run gator-load.js -e GATOR_URL=http://localhost:5000
+// Load test the Gator author-news service against the current API shape.
+//
+// Run:
+//   k6 run gator-load.js \
+//     -e GATOR_URL=http://localhost:8080 \
+//     -e GATOR_API_KEY=<key>
 //
 // Two concurrent scenarios:
-//   1. get_posts - simulates BookLoop feed page calling the aggregator
-//   2. register_authors - simulates new book adds registering authors
+//   1. get_feed    – simulates BookLoop feed page hitting GET /feed
+//   2. reg_authors – simulates book-adds triggering POST /authors
 
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate } from "k6/metrics";
 import { gatorHeaders } from "../shared/auth.js";
 
-const postsLatency      = new Trend("gator_posts_latency");
-const registerLatency   = new Trend("gator_register_latency");
-const errorRate         = new Rate("errors");
+const feedLatency     = new Trend("gator_feed_latency");
+const registerLatency = new Trend("gator_register_latency");
+const errorRate       = new Rate("errors");
 
 export const options = {
   scenarios: {
-    // Scenario 1: sustained reads (BookLoop feed page)
-    get_posts: {
+    get_feed: {
       executor: "ramping-vus",
       startVUs: 0,
       stages: [
-        { duration: "30s", target: 20  },
-        { duration: "2m",  target: 50  },
-        { duration: "30s", target: 0   },
+        { duration: "30s", target: 20 },
+        { duration: "2m",  target: 50 },
+        { duration: "30s", target: 0  },
       ],
-      exec: "getPosts",
+      exec: "getFeed",
     },
-    // Scenario 2: bursty writes (users adding books triggers author registration)
-    register_authors: {
+    reg_authors: {
       executor: "constant-arrival-rate",
-      rate: 3,           // 3 registrations per second
+      rate: 3,
       timeUnit: "1s",
       duration: "2m",
       preAllocatedVUs: 15,
@@ -39,48 +41,54 @@ export const options = {
     },
   },
   thresholds: {
-    gator_posts_latency:    ["p(95)<300"],  // posts should be fast
+    gator_feed_latency:     ["p(95)<300"],
     gator_register_latency: ["p(95)<500"],
     errors:                 ["rate<0.01"],
   },
 };
 
-const GATOR = __ENV.GATOR_URL || "http://localhost:5000";
+const GATOR = (__ENV.GATOR_URL || "http://localhost:8080").replace(/\/$/, "");
 const h     = gatorHeaders();
 
-// Simulates BookLoop's getPostsForAuthors call
-export function getPosts() {
-  const ids = __ENV.AUTHOR_IDS || "";
-  const res = http.get(
-    `${GATOR}/api/authors/posts?ids=${ids}&page=0&size=20`,
-    { headers: h }
-  );
-  postsLatency.add(res.timings.duration);
+export function setup() {
+  const res = http.get(`${GATOR}/health`);
+  check(res, { "health ok": (r) => r.status === 200 });
+}
+
+// Simulates BookLoop's feed page loading author news
+export function getFeed() {
+  const res = http.get(`${GATOR}/feed?pageSize=20`, { headers: h });
+  feedLatency.add(res.timings.duration);
   const ok = check(res, {
-    "posts 200": (r) => r.status === 200,
-    "posts has content": (r) => {
+    "feed 200": (r) => r.status === 200,
+    "feed has posts array": (r) => {
       try {
         const body = JSON.parse(r.body);
-        return Array.isArray(body.content);
+        return Array.isArray(body.posts);
       } catch { return false; }
     },
   });
   if (!ok) errorRate.add(1);
+  else errorRate.add(0);
   sleep(0.5);
 }
 
-// Simulates BookLoop's registerAuthor call when a user adds a book
+// Simulates ensureAuthorFollowed registering a new author via POST /authors
 export function registerAuthor() {
   const payload = JSON.stringify({
-    name: `Test Author ${Math.floor(Math.random() * 10000)}`,
-    feedUrls: [
-      `https://www.goodreads.com/author/list/${Math.floor(Math.random() * 9000000) + 1000000}.rss`,
-    ],
+    name: `Test Author ${Math.floor(Math.random() * 100000)}`,
   });
-  const res = http.post(`${GATOR}/api/authors/get-or-create`, payload, { headers: h });
+  const res = http.post(`${GATOR}/authors`, payload, { headers: h });
   registerLatency.add(res.timings.duration);
   const ok = check(res, {
-    "register 200 or 201": (r) => r.status === 200 || r.status === 201,
+    "register 201": (r) => r.status === 201,
+    "register returns id": (r) => {
+      try {
+        const body = JSON.parse(r.body);
+        return typeof body.id === "string";
+      } catch { return false; }
+    },
   });
   if (!ok) errorRate.add(1);
+  else errorRate.add(0);
 }

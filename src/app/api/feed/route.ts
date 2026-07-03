@@ -190,7 +190,7 @@ export async function GET(req: NextRequest) {
     const gatorIds = followedAuthors.map((a) => a.gatorAuthorId).filter((id): id is string => !!id);
     const authorNewsResult = !friendsCursorParam
       ? await getPostsForAuthors(gatorIds, gatorCursorParam ?? undefined)
-      : { content: [], hasMore: false };
+      : { posts: [], nextCursor: null };
 
     // -- 4. Build response --
 
@@ -211,11 +211,9 @@ export async function GET(req: NextRequest) {
         spoilered: e.spoilered,
         spoilerTags: e.spoilerTagsResult,
       })),
-      authorNews: authorNewsResult.content,
+      authorNews: authorNewsResult.posts,
       nextFriendsCursor,
-      nextGatorCursor: authorNewsResult.hasMore
-        ? (authorNewsResult.content[authorNewsResult.content.length - 1]?.id ?? null)
-        : null,
+      nextGatorCursor: authorNewsResult.nextCursor,
       friendsCount: followingIds.length,
       followedAuthorsCount: followedAuthors.length,
     };

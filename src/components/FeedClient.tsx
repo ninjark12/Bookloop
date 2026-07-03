@@ -29,9 +29,13 @@ type AuthorPost = {
   title: string;
   url: string;
   description: string | null;
-  publishedAt: string;
-  authorId: string;
-  authorName: string;
+  type: "UpcomingRelease" | "News" | "Adaptation" | "Event";
+  source: "GoogleBooks" | "GNews";
+  publishedAt: string | null;
+  createdAt: string;
+  isbn: string | null;
+  coverImageUrl: string | null;
+  releaseDate: string | null;
 };
 
 type SearchedUser = {
@@ -395,6 +399,13 @@ function FriendEntryCard({
 
 // -- Author news card --
 
+const POST_TYPE_LABEL: Record<string, string> = {
+  UpcomingRelease: "Upcoming Release",
+  News: "News",
+  Adaptation: "Adaptation",
+  Event: "Event",
+};
+
 function AuthorNewsCard({ post }: { post: AuthorPost }) {
   return (
     <article style={{
@@ -402,60 +413,84 @@ function AuthorNewsCard({ post }: { post: AuthorPost }) {
       border: "0.5px solid var(--border)",
       borderRadius: "var(--radius)",
       padding: "1rem",
+      display: "flex",
+      gap: "0.75rem",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", marginBottom: "6px" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{
-            fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em",
-            textTransform: "uppercase", color: "var(--accent)",
-            margin: "0 0 4px",
-          }}>
-            {post.authorName}
-          </p>
-          <a
-            href={post.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              fontSize: "14px", fontWeight: 600,
-              color: "var(--foreground)", textDecoration: "none",
-              fontFamily: "var(--font-display)", lineHeight: 1.3,
-              display: "block",
-            }}
-          >
-            {post.title}
-          </a>
-        </div>
+      {post.coverImageUrl && (
         <a
           href={post.url}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open article: ${post.title}`}
-          style={{
-            color: "var(--muted-foreground)", flexShrink: 0,
-            display: "flex", alignItems: "center",
-          }}
+          aria-label={post.title}
+          style={{ flexShrink: 0 }}
         >
-          <ExternalLink size={14} aria-hidden="true" />
+          <Image
+            src={post.coverImageUrl}
+            alt=""
+            width={40}
+            height={58}
+            style={{ objectFit: "cover", borderRadius: "3px", display: "block" }}
+          />
         </a>
-      </div>
-
-      {post.description && (
-        <p style={{
-          fontSize: "12px", color: "var(--muted-foreground)",
-          lineHeight: 1.6, margin: "0 0 8px",
-          display: "-webkit-box",
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}>
-          {post.description}
-        </p>
       )}
 
-      <p style={{ fontSize: "10px", color: "var(--muted-foreground)", margin: 0 }}>
-        {formatDate(post.publishedAt)}
-      </p>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", marginBottom: "6px" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em",
+              textTransform: "uppercase", color: "var(--accent)",
+              margin: "0 0 4px",
+            }}>
+              {POST_TYPE_LABEL[post.type] ?? post.type}
+            </p>
+            <a
+              href={post.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontSize: "14px", fontWeight: 600,
+                color: "var(--foreground)", textDecoration: "none",
+                fontFamily: "var(--font-display)", lineHeight: 1.3,
+                display: "block",
+              }}
+            >
+              {post.title}
+            </a>
+          </div>
+          <a
+            href={post.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open article: ${post.title}`}
+            style={{
+              color: "var(--muted-foreground)", flexShrink: 0,
+              display: "flex", alignItems: "center",
+            }}
+          >
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        </div>
+
+        {post.description && (
+          <p style={{
+            fontSize: "12px", color: "var(--muted-foreground)",
+            lineHeight: 1.6, margin: "0 0 8px",
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}>
+            {post.description}
+          </p>
+        )}
+
+        {post.publishedAt && (
+          <p style={{ fontSize: "10px", color: "var(--muted-foreground)", margin: 0 }}>
+            {formatDate(post.publishedAt)}
+          </p>
+        )}
+      </div>
     </article>
   );
 }

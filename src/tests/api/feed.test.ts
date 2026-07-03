@@ -10,10 +10,8 @@ vi.mock("@/lib/bedrock", () => ({
 
 vi.mock("@/lib/gator-client", () => ({
   getPostsForAuthors: vi.fn().mockResolvedValue({
-    content: [],
-    totalPages: 0,
-    totalElements: 0,
-    page: 0,
+    posts: [],
+    nextCursor: null,
   }),
 }));
 
@@ -162,13 +160,13 @@ describe("GET /api/feed", () => {
   describe("author news", () => {
     it("returns author news from gator for followed authors", async () => {
       const followedAuthor = { gatorAuthorId: "00000000-0000-0000-0000-000000000001", name: "Brandon" };
-      const post = { id: "p1", title: "New Book!", url: "http://example.com", description: null, publishedAt: "2024-01-01", authorId: followedAuthor.gatorAuthorId, authorName: "Brandon" };
+      const post = { id: "p1", title: "New Book!", url: "http://example.com", description: null, type: "UpcomingRelease", source: "GoogleBooks", publishedAt: null, createdAt: "2024-01-01T00:00:00Z", isbn: null, coverImageUrl: null, releaseDate: null };
 
       vi.mocked(db.then)
         .mockImplementationOnce((resolve: (v: unknown) => void) => resolve([]))           // no friends
         .mockImplementationOnce((resolve: (v: unknown) => void) => resolve([followedAuthor])); // followed authors
 
-      vi.mocked(getPostsForAuthors).mockResolvedValueOnce({ content: [post], totalPages: 1, totalElements: 1, page: 0 });
+      vi.mocked(getPostsForAuthors).mockResolvedValueOnce({ posts: [post], nextCursor: null });
 
       const res = await GET(req);
       const data = await res.json();

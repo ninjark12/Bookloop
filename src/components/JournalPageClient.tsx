@@ -311,8 +311,11 @@ export default function JournalPageClient({
               <label htmlFor="chapter-end" style={{ fontSize: "10px", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 To chapter
               </label>
-              <input id="chapter-end" type="number" min={chapterStart} value={chapterEnd || ""}
-                onChange={(e) => setChapterEnd(parseInt(e.target.value) || chapterStart)}
+              <input id="chapter-end" type="number" min={chapterStart || ""} value={chapterEnd || ""}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  setChapterEnd(isNaN(v) ? 0 : v);
+                }}
                 style={{ width: "72px", padding: "6px 8px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--background)", color: "var(--foreground)", fontSize: "13px" }}
               />
             </div>

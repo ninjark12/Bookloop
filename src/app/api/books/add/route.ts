@@ -4,6 +4,7 @@ import { books, readingProgress } from "@/db/schema"
 import { eq, InferSelectModel } from "drizzle-orm"
 import { getSession } from "@/lib/get-session"
 import { z } from "zod"
+import { ensureAuthorFollowed } from "@/lib/author-sync"
 
 const addBookSchema = z.object({
   bookId: z.string().uuid().optional(),
@@ -100,6 +101,10 @@ export async function POST(request: NextRequest) {
       },
     })
     .returning()
+
+  // Fire-and-forget: register the author with Gator and follow them so their
+  // news shows up in the feed. Never blocks the response.
+  void ensureAuthorFollowed(session.user.id, data.author);
 
   return NextResponse.json({ book, progress }, { status: 201 })
 }

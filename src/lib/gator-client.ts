@@ -4,7 +4,7 @@
 // --------------
 // 1. "server-only" throws a build error if this file is ever imported in a
 //    client component, preventing GATOR_API_KEY from being bundled into
-//    browser JS. CORS is not relevant here -- this runs Node.js server-side.
+//    browser JS.
 //
 // 2. All requests have a 10-second timeout so a slow or downed Gator service
 //    cannot hang Book Loop page loads indefinitely.
@@ -12,10 +12,8 @@
 // 3. GATOR_URL is validated at startup to require HTTPS in production.
 //    A misconfigured HTTP URL in prod would send the API key in plaintext.
 //
-// 4. Gator itself should use a HandlerInterceptor to reject any request
-//    missing the correct X-Api-Key. Ideally Gator is also on a private
-//    network (Fly.io private networking, Railway private service, etc.)
-//    so that the API key is a second layer, not the only one.
+// 4. Gator should be on a private network so the API key is a second layer,
+//    not the only one.
 
 import "server-only";
 
@@ -33,7 +31,6 @@ if (!GATOR_URL) {
   process.env.NODE_ENV === "production" &&
   !GATOR_URL.startsWith("https://")
 ) {
-  // Hard error in production -- HTTP would send the API key in plaintext
   throw new Error(
     `[gator-client] GATOR_URL must use HTTPS in production. Got: ${GATOR_URL}`
   );
@@ -45,26 +42,37 @@ if (!GATOR_API_KEY && process.env.NODE_ENV === "production") {
 
 // -- Types --
 
+export type GatorPostType = "UpcomingRelease" | "News" | "Adaptation" | "Event";
+export type GatorPostSource = "GoogleBooks" | "GNews";
+
 export type GatorPost = {
   id: string;
   title: string;
   url: string;
   description: string | null;
-  publishedAt: string;
-  authorId: string;
-  authorName: string;
+  type: GatorPostType;
+  source: GatorPostSource;
+  publishedAt: string | null;
+  createdAt: string;
+  isbn: string | null;
+  coverImageUrl: string | null;
+  releaseDate: string | null;
 };
 
 export type GatorAuthor = {
   id: string;
   name: string;
-  feedUrls: string[];
+  createdAt: string;
 };
 
-export type GatorPostsResponse = {
-  content: GatorPost[];
-  hasMore: boolean;
+export type GatorPostsPage = {
+  posts: GatorPost[];
+  nextCursor: string | null;
 };
+
+// Opaque per-author cursors encoded as a single base64 string.
+// This lets the feed route pass a single cursor value for multiple authors.
+type CompoundCursor = Record<string, string | null>;
 
 // -- Internal helpers --
 
@@ -75,31 +83,6 @@ function baseHeaders(): HeadersInit {
   };
 }
 
-// Returns a fetch options object with a timeout signal.
-// Ensures Gator latency or downtime never blocks Book Loop indefinitely.
-function withTimeout(init: RequestInit = {}): RequestInit {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  // Attach cleanup so the timer doesn't keep Node alive after the request resolves
-  const originalSignal = init.signal;
-  const signal = controller.signal;
-
-  // If the caller supplied their own signal, wire them together
-  if (originalSignal) {
-    originalSignal.addEventListener("abort", () => controller.abort());
-  }
-
-  return {
-    ...init,
-    signal,
-    // Store the timeout id so callers can clear it (advanced use)
-    // For our purposes the GC handles it after each request scope
-  };
-}
-
-// Thin fetch wrapper: handles timeout, non-OK status, and network errors
-// without letting any exception propagate to the calling page.
 async function gatorFetch<T>(
   path: string,
   init: RequestInit = {}
@@ -137,65 +120,162 @@ async function gatorFetch<T>(
   }
 }
 
-// -- Public API --
-
-// Register an author with Gator and watch their RSS feeds.
-// Call this when a Book Loop user first follows an author.
-// Returns the Gator-assigned author (store id as gatorAuthorId).
-export async function registerAuthor(
-  name: string,
-  feedUrls: string[]
-): Promise<GatorAuthor | null> {
-  return gatorFetch<GatorAuthor>("/api/authors", {
-    method: "POST",
-    body: JSON.stringify({ name, feedUrls }),
-  });
+function encodeCompoundCursor(c: CompoundCursor): string {
+  return Buffer.from(JSON.stringify(c)).toString("base64url");
 }
 
-// Fetch paginated news posts for a list of Gator author IDs.
-// Uses cursor-based pagination: afterId is the UUID of the last seen post.
-// Falls back to an empty result rather than throwing if Gator is unavailable.
-export async function getPostsForAuthors(
-  gatorAuthorIds: string[],
-  afterId?: string,
-  size = 20
-): Promise<GatorPostsResponse> {
-  const empty: GatorPostsResponse = { content: [], hasMore: false };
-
-  if (gatorAuthorIds.length === 0) return empty;
-
-  const safeIds = gatorAuthorIds.filter((id) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-  );
-
-  if (safeIds.length === 0) return empty;
-
-  const params = new URLSearchParams({ ids: safeIds.join(","), size: String(size) });
-  if (afterId) params.set("afterId", afterId);
-
-  const result = await gatorFetch<{ content: GatorPost[]; hasMore: boolean }>(
-    `/api/posts/authors?${params}`,
-    { cache: "force-cache", next: { revalidate: 300 } } as RequestInit
-  );
-
-  return result ?? empty;
+function decodeCompoundCursor(raw: string): CompoundCursor | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString());
+    if (typeof parsed === "object" && parsed !== null) return parsed as CompoundCursor;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
-// List all authors Gator knows about.
-// Used to avoid duplicate registrations during "follow author" flow.
+// -- Authors --
+
 export async function listAuthors(): Promise<GatorAuthor[]> {
-  const result = await gatorFetch<GatorAuthor[]>("/api/authors", {
+  const result = await gatorFetch<GatorAuthor[]>("/authors", {
     next: { revalidate: 60 },
   } as RequestInit);
   return result ?? [];
 }
 
-// Build the Goodreads RSS feed URL for an author.
-// This is the primary source for book release news.
-export function buildGoodreadsFeedUrl(goodreadsId: string): string {
-  // Validate goodreadsId is numeric before embedding in a URL
-  if (!/^\d+$/.test(goodreadsId)) {
-    throw new Error(`[gator-client] Invalid goodreadsId: ${goodreadsId}`);
+export async function getAuthor(id: string): Promise<GatorAuthor | null> {
+  return gatorFetch<GatorAuthor>(`/authors/${id}`);
+}
+
+// Register a new author with Gator. Returns the created author with Gator's
+// assigned id (store as gatorAuthorId on the local authors row).
+export async function registerAuthor(name: string): Promise<GatorAuthor | null> {
+  return gatorFetch<GatorAuthor>("/authors", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function updateAuthor(id: string, name: string): Promise<GatorAuthor | null> {
+  return gatorFetch<GatorAuthor>(`/authors/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ name }),
+  });
+}
+
+// Returns true on success (204), false on not-found or network error.
+export async function deleteAuthor(id: string): Promise<boolean> {
+  if (!GATOR_URL) return false;
+
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    const res = await fetch(`${GATOR_URL}/authors/${id}`, {
+      method: "DELETE",
+      headers: baseHeaders(),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return res.ok;
+  } catch {
+    if (timeoutId) clearTimeout(timeoutId);
+    return false;
   }
-  return `https://www.goodreads.com/author/list/${goodreadsId}.rss`;
+}
+
+// -- Posts --
+
+export async function getPostsForAuthor(
+  gatorAuthorId: string,
+  options: {
+    cursor?: string;
+    pageSize?: number;
+    type?: GatorPostType;
+  } = {}
+): Promise<GatorPostsPage> {
+  const { cursor, pageSize = 20, type } = options;
+  const params = new URLSearchParams({ pageSize: String(pageSize) });
+  if (cursor) params.set("cursor", cursor);
+  if (type) params.set("type", type);
+
+  const result = await gatorFetch<GatorPostsPage>(
+    `/authors/${gatorAuthorId}/posts?${params}`
+  );
+  return result ?? { posts: [], nextCursor: null };
+}
+
+export async function getFeed(
+  options: {
+    cursor?: string;
+    pageSize?: number;
+    source?: GatorPostSource;
+    type?: GatorPostType;
+    q?: string;
+  } = {}
+): Promise<GatorPostsPage> {
+  const { cursor, pageSize = 20, source, type, q } = options;
+  const params = new URLSearchParams({ pageSize: String(pageSize) });
+  if (cursor) params.set("cursor", cursor);
+  if (source) params.set("source", source);
+  if (type) params.set("type", type);
+  if (q) params.set("q", q);
+
+  const result = await gatorFetch<GatorPostsPage>(`/feed?${params}`);
+  return result ?? { posts: [], nextCursor: null };
+}
+
+// Fetch paginated posts for a list of Gator author IDs.
+// Calls /authors/{id}/posts in parallel for each author, merges results sorted
+// by createdAt desc. The cursor is an opaque compound cursor encoding each
+// author's individual Gator cursor; pass it back verbatim for the next page.
+export async function getPostsForAuthors(
+  gatorAuthorIds: string[],
+  cursor?: string,
+  pageSize = 20
+): Promise<GatorPostsPage> {
+  const empty: GatorPostsPage = { posts: [], nextCursor: null };
+
+  const safeIds = gatorAuthorIds.filter((id) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  );
+  if (safeIds.length === 0) return empty;
+
+  const cursorMap: CompoundCursor = cursor ? (decodeCompoundCursor(cursor) ?? {}) : {};
+
+  // On continuation pages, skip authors whose cursor is null (exhausted)
+  const activeIds = cursor
+    ? safeIds.filter((id) => cursorMap[id] !== null)
+    : safeIds;
+
+  if (activeIds.length === 0) return empty;
+
+  const results = await Promise.all(
+    activeIds.map(async (authorId) => {
+      const authorCursor = cursorMap[authorId] ?? undefined;
+      const page = await getPostsForAuthor(authorId, { cursor: authorCursor, pageSize });
+      return { authorId, posts: page.posts, nextCursor: page.nextCursor };
+    })
+  );
+
+  const allPosts = results.flatMap((r) => r.posts);
+  allPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const pagePosts = allPosts.slice(0, pageSize);
+
+  // Build compound cursor: start from fully-exhausted state for all ids,
+  // then overwrite with fresh cursors from this fetch.
+  const newCursorMap: CompoundCursor = Object.fromEntries(safeIds.map((id) => [id, null]));
+  for (const r of results) {
+    newCursorMap[r.authorId] = r.nextCursor;
+  }
+
+  const hasMore =
+    Object.values(newCursorMap).some((c) => c !== null) ||
+    allPosts.length > pageSize;
+
+  return {
+    posts: pagePosts,
+    nextCursor: hasMore ? encodeCompoundCursor(newCursorMap) : null,
+  };
 }

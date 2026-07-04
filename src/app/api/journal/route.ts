@@ -6,6 +6,19 @@ import { and, eq, ne } from "drizzle-orm";
 import { updateStreak, toLocalDateStr } from "@/lib/streak";
 import { redis, keys } from "@/lib/redis";
 import { getSpoilerTags } from "@/lib/bedrock";
+import { Client as QStashClient } from "@upstash/qstash";
+
+function scheduleReminderEmail(userId: string) {
+  const token = process.env.QSTASH_TOKEN;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!token || !baseUrl) return;
+  const qstash = new QStashClient({ token });
+  void qstash.publishJSON({
+    url: `${baseUrl}/api/reminders/daily`,
+    body: { userId },
+    delay: 12 * 60 * 60, // 12 hours in seconds
+  }).catch((e) => console.error("[journal] QStash schedule failed:", e));
+}
 
 function computeAndStoreTags(entryId: string, content: string) {
   void getSpoilerTags(content)
@@ -143,6 +156,9 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error("[POST /api/journal] streak update failed:", e);
     }
+
+    // Schedule a daily reminder 12 hours from now in case they don't write again today
+    scheduleReminderEmail(userId);
 
     return NextResponse.json({ entry }, { status: 201 });
 

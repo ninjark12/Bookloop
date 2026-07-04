@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { BookOpen, User, LogOut, Sun, Moon, ChevronDown, Settings } from "lucide-react";
+import { BookOpen, User, LogOut, Sun, Moon, ChevronDown, Settings, Bug } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useEffect, useRef, useState } from "react";
 import { useFriendRequests } from "@/components/friends/FriendRequestsProvider";
+import BugReportModal from "@/components/BugReportModal";
 
 const links = [
   { href: "/dashboard", label: "Journal" },
@@ -23,6 +24,7 @@ export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [bugModalOpen, setBugModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { pendingCount } = useFriendRequests();
 
@@ -58,6 +60,7 @@ export default function Navbar() {
   }
 
   return (
+    <>
     <nav className="border-b border-border bg-card/80 backdrop-blur-sm fixed top-0 left-0 right-0 z-50">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
 
@@ -103,6 +106,18 @@ export default function Navbar() {
               )}
             </Link>
           ))}
+
+          {/* Bug report */}
+          <button
+            type="button"
+            onClick={() => setBugModalOpen(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-md
+                       text-muted-foreground hover:text-primary
+                       hover:bg-muted transition-colors"
+            aria-label="Report a bug"
+          >
+            <Bug className="w-4 h-4" aria-hidden="true" />
+          </button>
 
           {/* Dark mode toggle */}
           {mounted && (
@@ -233,5 +248,7 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
+    {bugModalOpen && <BugReportModal onClose={() => setBugModalOpen(false)} />}
+    </>
   );
 }

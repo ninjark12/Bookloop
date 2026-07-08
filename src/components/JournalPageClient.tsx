@@ -109,6 +109,16 @@ export default function JournalPageClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Deep link from search: /journal/[bookId]?entry=[entryId] opens that entry
+  // directly, as if it had been clicked within the journal.
+  useEffect(() => {
+    const entryId = searchParams.get("entry");
+    if (!entryId) return;
+    const target = entries.find(e => e.id === entryId);
+    if (target) setSelectedEntry(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

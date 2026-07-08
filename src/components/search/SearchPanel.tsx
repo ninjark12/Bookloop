@@ -20,7 +20,7 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
   const [scope, setScope] = useState<SearchScope>("mine");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data, isFetching, isError, refetch } = useSearch(query, scope);
+  const { data, isFetching, isError, refetch, submit } = useSearch(query, scope);
 
   // Autofocus on open
   useEffect(() => {
@@ -41,13 +41,15 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
 
+  function resultHref(r: SearchResult): string {
+    return scope === "friends"
+      ? `/users/${r.user_id}/books/${r.book_id}`
+      : `/journal/${r.book_id}?entry=${r.id}`;
+  }
+
   function navigateToResult(r: SearchResult) {
     onClose();
-    if (scope === "friends") {
-      router.push(`/users/${r.user_id}/books/${r.book_id}`);
-    } else {
-      router.push(`/journal/${r.book_id}`);
-    }
+    router.push(resultHref(r));
   }
 
   const results = data?.results ?? [];
@@ -83,7 +85,11 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
         }}
       >
         {/* Header */}
-        <div
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
           style={{
             padding: "1rem 1.25rem",
             display: "flex",
@@ -93,25 +99,6 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
             flexShrink: 0,
           }}
         >
-          <Search size={16} aria-hidden="true" style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your journal…"
-            aria-label="Search query"
-            style={{
-              flex: 1,
-              padding: "6px 4px",
-              fontSize: "14px",
-              border: "none",
-              background: "transparent",
-              color: "var(--foreground)",
-              outline: "none",
-              fontFamily: "inherit",
-            }}
-          />
           <button
             type="button"
             aria-label="Close search"
@@ -132,7 +119,43 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
           >
             <X size={12} aria-hidden="true" />
           </button>
-        </div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search your journal…"
+            aria-label="Search query"
+            style={{
+              flex: 1,
+              padding: "6px 4px",
+              fontSize: "14px",
+              border: "none",
+              background: "transparent",
+              color: "var(--foreground)",
+              outline: "none",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            type="submit"
+            aria-label="Search"
+            title="Search"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "none",
+              background: "transparent",
+              padding: 0,
+              color: "var(--muted-foreground)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <Search size={16} aria-hidden="true" />
+          </button>
+        </form>
 
         {/* Scope toggle */}
         <div
@@ -239,6 +262,7 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
                   <button
                     type="button"
                     onClick={() => navigateToResult(r)}
+                    onMouseEnter={() => router.prefetch(resultHref(r))}
                     style={{
                       width: "100%",
                       textAlign: "left",

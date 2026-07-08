@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { BookInfoModal, type BookDetail } from "@/components/BookInfoModal";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Plus, X, ChevronLeft, Pencil, Check, Trash2 } from "lucide-react";
+import { BookOpen, Plus, X, ChevronLeft, Pencil, Check, Trash2, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Book, JournalEntry, ReadingProgress } from "@/db/schema";
 import { Spine } from "./DashboardClient";
+import EntryTagsModal from "@/components/journal/EntryTagsModal";
 
 type Props = {
   book: Book;
@@ -74,6 +75,7 @@ export default function JournalPageClient({
 
   // Entry expand / edit / delete
   const [selectedEntry, setSelectedEntry] = useState<OptimisticEntry | null>(null);
+  const [showTagsModal, setShowTagsModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editIsPublic, setEditIsPublic] = useState(false);
@@ -111,6 +113,8 @@ export default function JournalPageClient({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        // The tags modal owns Escape while it is open.
+        if (showTagsModal) return;
         if (confirmDelete) { setConfirmDelete(false); return; }
         if (showForm) { setShowForm(false); setError(""); return; }
         if (editMode) { setEditMode(false); setEditError(""); return; }
@@ -130,7 +134,7 @@ export default function JournalPageClient({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showForm, editMode, selectedEntry, confirmDelete, content, editContent, chapterStart, chapterEnd, scope]);
+  }, [showForm, editMode, selectedEntry, confirmDelete, content, editContent, chapterStart, chapterEnd, scope, showTagsModal]);
 
   useEffect(() => { if (showForm && !isMobile) textareaRef.current?.focus(); }, [showForm]);
   useEffect(() => { if (editMode && !isMobile) editTextareaRef.current?.focus(); }, [editMode]);
@@ -462,6 +466,16 @@ export default function JournalPageClient({
           </div>
         )}
 
+        {!editMode && !confirmDelete && !selectedEntry.optimistic && (
+          <div style={{ flexShrink: 0, paddingTop: "4px", borderTop: "0.5px solid var(--border)" }}>
+            <button type="button" aria-label="View and edit tags"
+              onClick={() => setShowTagsModal(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "5px 12px", fontSize: "11px", border: "0.5px solid var(--border)", borderRadius: "var(--radius)", background: "var(--muted)", color: "var(--muted-foreground)", cursor: "pointer", fontFamily: "inherit" }}>
+              <Tag size={11} aria-hidden="true" /> Tags
+            </button>
+          </div>
+        )}
+
         {editMode && (
           <>
             <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap", flexShrink: 0 }}>
@@ -719,6 +733,13 @@ export default function JournalPageClient({
           bookId={book.id}
           preloaded={book as BookDetail}
           onClose={() => setShowBookModal(false)}
+        />
+      )}
+
+      {showTagsModal && selectedEntry && !selectedEntry.optimistic && (
+        <EntryTagsModal
+          entryId={selectedEntry.id}
+          onClose={() => setShowTagsModal(false)}
         />
       )}
     </div>

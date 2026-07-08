@@ -5,11 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { BookOpen, User, LogOut, Sun, Moon, ChevronDown, Settings, Bug } from "lucide-react";
+import { BookOpen, User, LogOut, Sun, Moon, ChevronDown, Settings, Bug, Search } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useEffect, useRef, useState } from "react";
 import { useFriendRequests } from "@/components/friends/FriendRequestsProvider";
 import BugReportModal from "@/components/BugReportModal";
+import SearchPanel from "@/components/search/SearchPanel";
 
 const links = [
   { href: "/dashboard", label: "Journal" },
@@ -25,6 +26,7 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [bugModalOpen, setBugModalOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { pendingCount } = useFriendRequests();
 
@@ -47,6 +49,20 @@ export default function Navbar() {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") setDropdownOpen(false);
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, []);
+
+  // "/" opens search when not typing in a field
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "/") return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return;
+      e.preventDefault();
+      setSearchOpen(true);
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -106,6 +122,21 @@ export default function Navbar() {
               )}
             </Link>
           ))}
+
+          {/* Search */}
+          {session && (
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="w-8 h-8 flex items-center justify-center rounded-md
+                         text-muted-foreground hover:text-primary
+                         hover:bg-muted transition-colors"
+              aria-label="Search journal"
+              title="Search (/)"
+            >
+              <Search className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
 
           {/* Bug report */}
           <button
@@ -249,6 +280,7 @@ export default function Navbar() {
       </div>
     </nav>
     {bugModalOpen && <BugReportModal onClose={() => setBugModalOpen(false)} />}
+    {searchOpen && <SearchPanel onClose={() => setSearchOpen(false)} />}
     </>
   );
 }

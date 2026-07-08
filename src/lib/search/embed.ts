@@ -22,8 +22,10 @@ export async function embedQuery(text: string): Promise<number[]> {
       contentType: "application/json",
       accept: "application/json",
       body: JSON.stringify({
+        // Titan Text Embeddings V2 supports 256/512/1024 (not 1536). Must match
+        // the vector(1024) column + the tagger Lambda's embedding dimension.
         inputText: text.slice(0, 8000),
-        dimensions: 1536,
+        dimensions: 1024,
         normalize: true,
       }),
     })

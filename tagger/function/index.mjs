@@ -170,7 +170,7 @@ async function embed(content) {
       modelId: EMBEDDING_MODEL_ID,
       contentType: "application/json",
       accept: "application/json",
-      body: JSON.stringify({ inputText: content.slice(0, 8000), dimensions: 1536, normalize: true }),
+      body: JSON.stringify({ inputText: content.slice(0, 8000), dimensions: 1024, normalize: true }),
     })
   );
   const parsed = JSON.parse(new TextDecoder().decode(res.body));

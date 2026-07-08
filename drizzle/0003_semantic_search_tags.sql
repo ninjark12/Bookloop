@@ -62,8 +62,9 @@ CREATE INDEX IF NOT EXISTS idx_entry_tags_namespace  ON journal_entry_tags (name
 CREATE INDEX IF NOT EXISTS idx_entry_tags_verified   ON journal_entry_tags (verified);--> statement-breakpoint
 
 -- Embedding + processing status on journal entries
+-- 1024 dims = Amazon Titan Text Embeddings V2 (supports 256/512/1024, NOT 1536).
 ALTER TABLE journal_entries
-  ADD COLUMN IF NOT EXISTS embedding vector(1536),
+  ADD COLUMN IF NOT EXISTS embedding vector(1024),
   ADD COLUMN IF NOT EXISTS processing_status TEXT NOT NULL DEFAULT 'pending';--> statement-breakpoint
 
 -- Full-text index for the FTS ranker in hybridSearch (semantic-search.md M2).

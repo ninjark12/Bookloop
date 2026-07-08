@@ -1,0 +1,15 @@
+{
+  "name": "bookloop-tagger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SQS-triggered Lambda that tags + embeds Bookloop journal entries via Bedrock.",
+  "main": "index.mjs",
+  "scripts": {
+    "package": "npm ci --omit=dev && zip -qr tagger.zip index.mjs node_modules package.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1055.0",
+    "postgres": "^3.4.8"
+  }
+}

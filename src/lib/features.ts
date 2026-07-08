@@ -17,9 +17,10 @@ export const Features = {
    * See semantic-search.md — the /api/search route gates on this.
    */
   search: !!process.env.SEARCH_EXPANSION_MODEL_ID && !!process.env.AWS_ACCESS_KEY_ID,
+  /**
+   * Async tagging + embedding pipeline (SQS -> tagger Lambda). When set, new
+   * journal entries are enqueued for taxonomy tagging + embedding. Independent
+   * of the inline `spoilerTags` Bedrock call, which still runs for the feed.
+   */
+  tagging: !!process.env.BOOKLOOP_TAGGING_QUEUE_URL,
 } as const;
-
-// NOTE: refactor.md proposed a `tagging` flag keyed on BOOKLOOP_TAGGING_QUEUE_URL
-// (an SQS pipeline). This codebase computes spoiler tags inline via Bedrock
-// (see src/lib/bedrock.ts + /api/journal), so there is no such queue. Reintroduce
-// a `tagging` flag here if/when the async tagging pipeline lands.

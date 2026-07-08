@@ -6,6 +6,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { updateStreak, toLocalDateStr } from "@/lib/streak";
 import { redis, keys } from "@/lib/redis";
 import { getSpoilerTags } from "@/lib/bedrock";
+import { enqueueForTagging } from "@/lib/tagging";
 import { Client as QStashClient } from "@upstash/qstash";
 
 function scheduleReminderEmail(userId: string) {
@@ -141,6 +142,12 @@ export async function POST(req: NextRequest) {
     // Compute spoiler tags in the background for public entries
     if (isPublic && content.trim().length >= 20) {
       computeAndStoreTags(entry.id, content.trim());
+    }
+
+    // Enqueue for taxonomy tagging + embedding (own + friends' search).
+    // Runs for public and private entries; no-op unless the pipeline is set up.
+    if (content.trim().length >= 20) {
+      enqueueForTagging(entry.id, content.trim());
     }
 
     // Update streak — only when the day has actually changed.

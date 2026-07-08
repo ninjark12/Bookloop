@@ -175,6 +175,7 @@ next-env.d.ts
 .claude/
 CLAUDE.md
 context.md
+learning.md
 
 # load test results
 load-tests/results/*.json

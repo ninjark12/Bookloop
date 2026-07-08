@@ -17,7 +17,9 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import postgres from "postgres";
 
-const REGION = process.env.AWS_REGION ?? "us-east-2";
+// Bedrock region can be pinned separately from the Lambda's own region
+// (Lambda auto-sets AWS_REGION). Defaults to us-east-2.
+const REGION = process.env.AWS_BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-2";
 const TAGGER_MODEL_ID = process.env.TAGGER_MODEL_ID ?? "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 const EMBEDDING_MODEL_ID = process.env.EMBEDDING_MODEL_ID ?? "amazon.titan-embed-text-v2:0";
 const MAX_TAGS = 12;

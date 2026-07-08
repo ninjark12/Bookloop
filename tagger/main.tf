@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.4"
+    }
   }
 }
 
@@ -99,6 +103,16 @@ resource "aws_iam_role_policy" "tagger" {
   })
 }
 
+// --- Lambda package ---
+// Terraform builds the zip itself from function/ (run `npm install` there
+// first so node_modules is present). No external `zip` CLI needed.
+
+data "archive_file" "tagger" {
+  type        = "zip"
+  source_dir  = "${path.module}/function"
+  output_path = "${path.module}/build/tagger.zip"
+}
+
 // --- Lambda ---
 
 resource "aws_lambda_function" "tagger" {
@@ -106,8 +120,8 @@ resource "aws_lambda_function" "tagger" {
   role             = aws_iam_role.tagger.arn
   runtime          = "nodejs20.x"
   handler          = "index.handler"
-  filename         = "${path.module}/tagger.zip"
-  source_code_hash = filebase64sha256("${path.module}/tagger.zip")
+  filename         = data.archive_file.tagger.output_path
+  source_code_hash = data.archive_file.tagger.output_base64sha256
   timeout          = 120
   memory_size      = 512
 
@@ -116,6 +130,7 @@ resource "aws_lambda_function" "tagger" {
       DATABASE_URL       = var.database_url
       TAGGER_MODEL_ID    = var.tagger_model_id
       EMBEDDING_MODEL_ID = var.embedding_model_id
+      AWS_BEDROCK_REGION = "us-east-2"
     }
   }
 }

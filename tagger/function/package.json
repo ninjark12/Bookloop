@@ -6,7 +6,7 @@
   "description": "SQS-triggered Lambda that tags + embeds Bookloop journal entries via Bedrock.",
   "main": "index.mjs",
   "scripts": {
-    "package": "npm ci --omit=dev && zip -qr tagger.zip index.mjs node_modules package.json"
+    "install-deps": "npm install --omit=dev"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1055.0",

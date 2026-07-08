@@ -15,24 +15,28 @@ already be applied (it is).
 
 ## One-time prerequisites
 
-1. **Bedrock model access** — in the AWS console (region `us-east-2` by default),
-   Bedrock → Model access, enable:
+1. **Bedrock model access** — AWS console, region `us-east-2`, Bedrock → Model
+   access, enable (this is NOT created by Terraform — it's an account-level grant):
    - Anthropic Claude Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`)
-   - Amazon Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`)
+     — likely already on, since the spoiler feature uses it.
+   - **Amazon Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) — the
+     new one the tagger needs for embeddings; enable it.
 2. **Provisioning credentials** — Terraform needs an AWS identity that can create
    IAM/Lambda/SQS. Your app's Bedrock-only user is not enough; use an admin
    profile (`AWS_PROFILE=...`) for the apply.
-3. **Tooling** — Terraform ≥ 1.5 and Node ≥ 20.
+3. **Tooling** — Terraform ≥ 1.5 and Node ≥ 20. (No `zip` CLI needed — Terraform
+   builds the package via the `archive_file` data source.)
 
 ## Deploy
 
 ```bash
 cd tagger
 
-# 1. Build the Lambda package (index.mjs + prod deps -> tagger.zip)
-npm run package
+# 1. Install the Lambda's prod deps so Terraform can zip them in.
+(cd function && npm install --omit=dev)
 
-# 2. Provision SQS + Lambda + IAM. Pass the Supabase pooler URL.
+# 2. Provision SQS + Lambda + IAM. Terraform zips function/ -> build/tagger.zip.
+#    Pass the Supabase pooler URL. Region defaults to us-east-2.
 terraform init
 terraform apply -var "database_url=postgresql://postgres:...@...pooler.supabase.com:6543/postgres"
 
@@ -46,13 +50,14 @@ entries (>= 20 chars) are enqueued automatically on save.
 
 ## Redeploying just the code
 
-After editing `index.mjs`:
+After editing `function/index.mjs`:
 
 ```bash
-npm run package && terraform apply -var "database_url=..."
+terraform apply -var "database_url=..."
 ```
 
-Terraform re-uploads because `source_code_hash` changes.
+The `archive_file` re-zips and `source_code_hash` changes, so Terraform
+re-uploads automatically.
 
 ## Backfilling existing entries
 

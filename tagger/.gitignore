@@ -1,6 +1,8 @@
 node_modules/
-tagger.zip
+build/
+*.zip
 .terraform/
+.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 terraform.tfvars

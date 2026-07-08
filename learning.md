@@ -291,14 +291,26 @@ resource "aws_lambda_event_source_mapping" "sqs" {
   function_response_types = ["ReportBatchItemFailures"]   # matches the handler's return
 }
 
+# let Terraform build the zip (no external `zip` CLI); function code lives in
+# its own dir so the archive excludes the .tf files
+data "archive_file" "tagger" {
+  type        = "zip"
+  source_dir  = "${path.module}/function"
+  output_path = "${path.module}/build/tagger.zip"
+}
+
 resource "aws_lambda_function" "tagger" {
-  filename         = "${path.module}/tagger.zip"
-  source_code_hash = filebase64sha256("${path.module}/tagger.zip")  # re-uploads on change
+  filename         = data.archive_file.tagger.output_path
+  source_code_hash = data.archive_file.tagger.output_base64sha256  # re-uploads on change
 }
 
 output "queue_url" { value = aws_sqs_queue.tagger.url }   # surface what the app needs
 ```
 
+- **Build the zip in Terraform:** the `archive_file` data source zips the code
+  at plan time — no `zip` CLI, and `source_code_hash` auto-triggers re-upload.
+  Keep function code in its own dir (`function/`) so the archive doesn't pull in
+  the `.tf`/state files. Run `npm install` there first so deps are bundled.
 - **DLQ + redrive:** `redrive_policy` with `maxReceiveCount` routes poison
   messages to a dead-letter queue after N retries.
 - **Visibility timeout ≥ Lambda timeout** so a message isn't re-delivered while

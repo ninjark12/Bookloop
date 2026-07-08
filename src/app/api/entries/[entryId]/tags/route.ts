@@ -5,6 +5,7 @@ import { VALID_NAMESPACES } from "@/lib/search/parser";
 import {
   entryBelongsToUser,
   getEntryTags,
+  getEntryProcessingStatus,
   addEntryTag,
   removeEntryTag,
 } from "@/lib/db/journal";
@@ -35,6 +36,14 @@ async function requireOwnEntry(entryId: string, userId: string) {
 
 class NotFound extends Error {}
 
+async function tagsPayload(entryId: string) {
+  const [tags, processingStatus] = await Promise.all([
+    getEntryTags(entryId),
+    getEntryProcessingStatus(entryId),
+  ]);
+  return { tags, processingStatus };
+}
+
 export const GET = withAuth(async (_req, session, params) => {
   try {
     await requireOwnEntry(params.entryId, session.user.id);
@@ -42,8 +51,7 @@ export const GET = withAuth(async (_req, session, params) => {
     if (e instanceof NotFound) return NextResponse.json({ error: "Not found" }, { status: 404 });
     throw e;
   }
-  const tags = await getEntryTags(params.entryId);
-  return NextResponse.json({ tags });
+  return NextResponse.json(await tagsPayload(params.entryId));
 });
 
 export const POST = withAuth(async (req, session, params) => {
@@ -56,8 +64,7 @@ export const POST = withAuth(async (req, session, params) => {
   const body = await req.json().catch(() => ({}));
   const tag = normalizeTag(body.tag);
   await addEntryTag(params.entryId, tag);
-  const tags = await getEntryTags(params.entryId);
-  return NextResponse.json({ tags });
+  return NextResponse.json(await tagsPayload(params.entryId));
 });
 
 export const DELETE = withAuth(async (req, session, params) => {
@@ -71,6 +78,5 @@ export const DELETE = withAuth(async (req, session, params) => {
   const tag = url.searchParams.get("tag");
   if (!tag) throw new ValidationError("tag query param is required");
   await removeEntryTag(params.entryId, tag.toLowerCase());
-  const tags = await getEntryTags(params.entryId);
-  return NextResponse.json({ tags });
+  return NextResponse.json(await tagsPayload(params.entryId));
 });

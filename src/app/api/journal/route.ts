@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/get-session";
 import { db } from "@/db";
 import { journalEntries, readingProgress } from "@/db/schema";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { updateStreak, toLocalDateStr } from "@/lib/streak";
 import { redis, keys } from "@/lib/redis";
 import { getSpoilerTags } from "@/lib/bedrock";
@@ -148,6 +148,11 @@ export async function POST(req: NextRequest) {
     // Runs for public and private entries; no-op unless the pipeline is set up.
     if (content.trim().length >= 20) {
       enqueueForTagging(entry.id, content.trim());
+    } else {
+      // Too short to tag/embed — stamp terminal so it doesn't sit at 'pending'.
+      void db
+        .execute(sql`UPDATE journal_entries SET processing_status = 'skipped' WHERE id = ${entry.id}`)
+        .catch((e) => console.error("[journal] skip-status update failed:", e));
     }
 
     // Update streak — only when the day has actually changed.

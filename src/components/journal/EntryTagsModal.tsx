@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2 } from "lucide-react";
 import { VALID_NAMESPACES } from "@/lib/search/parser";
 import { useEntryTags, useAddEntryTag, useRemoveEntryTag } from "@/hooks/useEntryTags";
 import TagChip from "@/components/search/TagChip";
@@ -13,7 +13,7 @@ type Props = {
 };
 
 export default function EntryTagsModal({ entryId, canEdit = true, onClose }: Props) {
-  const { data: tags, isLoading, isError } = useEntryTags(entryId);
+  const { data, isLoading, isError } = useEntryTags(entryId);
   const addTag = useAddEntryTag(entryId);
   const removeTag = useRemoveEntryTag(entryId);
 
@@ -35,7 +35,8 @@ export default function EntryTagsModal({ entryId, canEdit = true, onClose }: Pro
     addTag.mutate(`${namespace}:${name}`, { onSuccess: () => setValue("") });
   }
 
-  const list = tags ?? [];
+  const list = data?.tags ?? [];
+  const analyzing = data?.processingStatus === "pending" || data?.processingStatus === "processing";
 
   return (
     <div
@@ -112,8 +113,14 @@ export default function EntryTagsModal({ entryId, canEdit = true, onClose }: Pro
               Couldn&apos;t load tags.
             </p>
           ) : list.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0 }}>
-              No tags yet.
+            <p style={{ fontSize: "13px", color: "var(--muted-foreground)", margin: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+              {analyzing ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" aria-hidden="true" /> Analyzing…
+                </>
+              ) : (
+                "No tags yet."
+              )}
             </p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
@@ -145,6 +152,22 @@ export default function EntryTagsModal({ entryId, canEdit = true, onClose }: Pro
                   )}
                 </span>
               ))}
+              {analyzing && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "3px 9px",
+                    fontSize: "11px",
+                    borderRadius: "999px",
+                    background: "var(--muted)",
+                    color: "var(--muted-foreground)",
+                  }}
+                >
+                  <Loader2 size={11} className="animate-spin" aria-hidden="true" /> Analyzing…
+                </span>
+              )}
             </div>
           )}
 

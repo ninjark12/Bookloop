@@ -24,6 +24,15 @@ export async function entryBelongsToUser(entryId: string, userId: string): Promi
   return result.length > 0;
 }
 
+/** The entry's tagging pipeline status: pending | processing | done | failed | skipped. */
+export async function getEntryProcessingStatus(entryId: string): Promise<string | null> {
+  assertUuid(entryId, "entryId");
+  const result = await db.execute(sql`
+    SELECT processing_status FROM journal_entries WHERE id = ${entryId} LIMIT 1
+  `);
+  return (result[0] as { processing_status?: string })?.processing_status ?? null;
+}
+
 /** All tags on a single entry (for the entry tags modal). */
 export async function getEntryTags(entryId: string): Promise<EntryTag[]> {
   assertUuid(entryId, "entryId");

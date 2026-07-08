@@ -57,7 +57,7 @@ function includeFilterSql(includeTags: string[]): SQL {
   if (includeTags.length === 0) return sql``;
   return sql`AND s.id IN (
     SELECT entry_id FROM journal_entry_tags
-    WHERE tag = ANY(${includeTags}::text[])
+    WHERE tag IN ${includeTags}
     GROUP BY entry_id
     HAVING COUNT(DISTINCT tag) = ${includeTags.length}
   )`;
@@ -67,7 +67,7 @@ function excludeFilterSql(excludeTags: string[]): SQL {
   if (excludeTags.length === 0) return sql``;
   return sql`AND s.id NOT IN (
     SELECT entry_id FROM journal_entry_tags
-    WHERE tag = ANY(${excludeTags}::text[])
+    WHERE tag IN ${excludeTags}
   )`;
 }
 
@@ -130,7 +130,7 @@ export async function hybridSearch(params: SearchParams) {
         ) AS rank
         FROM journal_entry_tags jet
         JOIN filtered s ON s.id = jet.entry_id
-        WHERE jet.tag = ANY(${expandedTags}::text[])
+        WHERE jet.tag IN ${expandedTags}
         GROUP BY jet.entry_id
         LIMIT 100
       )`
@@ -192,7 +192,7 @@ export async function tagOnlySearch(
       SELECT f.id,
              COALESCE(SUM(
                CASE WHEN jet.verified THEN 2 ELSE 1 END
-             ) FILTER (WHERE jet.tag = ANY(${scoreTags}::text[])), 0) AS tag_score
+             ) FILTER (WHERE jet.tag IN ${scoreTags}), 0) AS tag_score
       FROM filtered f
       LEFT JOIN journal_entry_tags jet ON jet.entry_id = f.id
       GROUP BY f.id

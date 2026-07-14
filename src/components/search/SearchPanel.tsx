@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X, Search } from "lucide-react";
 import { useSearch, type SearchScope, type SearchResult } from "@/hooks/useSearch";
@@ -276,11 +277,12 @@ export default function SearchPanel({ onClose }: { onClose: () => void }) {
                       fontFamily: "inherit",
                     }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     {r.book_cover_url ? (
-                      <img
+                      <Image
                         src={r.book_cover_url}
                         alt=""
+                        width={36}
+                        height={54}
                         style={{ width: "36px", height: "54px", objectFit: "cover", borderRadius: "3px", flexShrink: 0 }}
                       />
                     ) : (

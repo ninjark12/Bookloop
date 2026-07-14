@@ -11,8 +11,7 @@ export default function FeatureCard({ icon: Icon, title, description }: Props) {
   return (
     <Card className="text-center p-2">
       <CardHeader className="pb-2">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center
-                        justify-center mx-auto mb-2">
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
           <Icon className="w-5 h-5 text-primary" />
         </div>
         <CardTitle className="text-base" style={{ fontFamily: "var(--font-display)" }}>

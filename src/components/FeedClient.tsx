@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Newspaper, Users, RefreshCw, ExternalLink, Eye, EyeOff, UserPlus, X, Search, Check } from "lucide-react";
 import { BookInfoModal } from "@/components/BookInfoModal";
 import { useFriendRequests } from "@/components/friends/FriendRequestsProvider";
+import ManageFriendsModal from "@/components/friends/ManageFriendsModal";
 
 type FriendEntry = {
   id: string;
@@ -183,9 +184,11 @@ function EntryModal({ entry, onClose, onBookClick }: { entry: FriendEntry; onClo
 function FriendEntryCard({
   entry,
   onBookClick,
+  onAuthorClick,
 }: {
   entry: FriendEntry;
   onBookClick: (bookId: string) => void;
+  onAuthorClick: (authorId: string) => void;
 }) {
   const [revealed, setRevealed] = useState<false | "tags" | "full">(false);
   const [showFullEntry, setShowFullEntry] = useState(false);
@@ -203,18 +206,29 @@ function FriendEntryCard({
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-          <div style={{
-            width: "30px", height: "30px", borderRadius: "50%", flexShrink: 0,
-            background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "12px", fontWeight: 700, color: "var(--primary)",
-          }}>
+          <button
+            type="button"
+            onClick={() => onAuthorClick(entry.authorId)}
+            aria-label={`View ${entry.authorName ?? "reader"}'s journal`}
+            title={`View ${entry.authorName ?? "reader"}'s journal`}
+            style={{
+              width: "30px", height: "30px", borderRadius: "50%", flexShrink: 0,
+              background: "color-mix(in srgb, var(--primary) 15%, var(--card))",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "12px", fontWeight: 700, color: "var(--primary)",
+              border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit",
+            }}
+          >
             {(entry.authorName ?? "?")[0].toUpperCase()}
-          </div>
+          </button>
           <div style={{ minWidth: 0 }}>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--foreground)" }}>
+            <button
+              type="button"
+              onClick={() => onAuthorClick(entry.authorId)}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "13px", fontWeight: 600, color: "var(--foreground)", fontFamily: "inherit" }}
+            >
               {entry.authorName ?? "Reader"}
-            </span>
+            </button>
             <span style={{ fontSize: "12px", color: "var(--muted-foreground)", marginLeft: "6px" }}>
               wrote about
             </span>
@@ -552,6 +566,8 @@ export default function FeedClient() {
 
   // Add Friend modal state
   const [showModal, setShowModal] = useState(false);
+  // Manage Friends (list / remove / go to journal) modal state
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
   const [searchError, setSearchError] = useState("");
@@ -726,6 +742,20 @@ export default function FeedClient() {
           >
             <UserPlus size={13} aria-hidden="true" />
             Add Friend
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFriendsModal(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "6px 12px", fontSize: "13px",
+              border: "0.5px solid var(--border)", borderRadius: "var(--radius)",
+              background: "var(--card)", color: "var(--foreground)",
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <Users size={13} aria-hidden="true" />
+            Friends
           </button>
           <button
             type="button"
@@ -908,6 +938,7 @@ export default function FeedClient() {
                   key={entry.id}
                   entry={entry}
                   onBookClick={(bookId) => setBookModalId(bookId)}
+                  onAuthorClick={(authorId) => router.push(`/u/${authorId}`)}
                 />
               ))}
               {nextFriendsCursor && (
@@ -987,7 +1018,7 @@ export default function FeedClient() {
               <a href="/profile" style={{ color: "var(--primary)", textDecoration: "underline" }}>
                 Profile page
               </a>
-              {" "}under "Friends" — share it so others can find you.
+              {" "}under &ldquo;Friends&rdquo; — share it so others can find you.
             </p>
 
             {/* Search input */}
@@ -1105,6 +1136,11 @@ export default function FeedClient() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Manage Friends modal */}
+      {showFriendsModal && (
+        <ManageFriendsModal onClose={() => setShowFriendsModal(false)} />
       )}
 
       {/* Book info modal */}

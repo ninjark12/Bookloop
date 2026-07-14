@@ -18,6 +18,11 @@ const links = [
   { href: "/feed", label: "Friends" },
 ];
 
+// Single-line to avoid hydration mismatches: multi-line string-literal classNames
+// get their embedded whitespace serialized differently on server vs client.
+const iconButtonClass =
+  "w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-muted transition-colors";
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -128,9 +133,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="w-8 h-8 flex items-center justify-center rounded-md
-                         text-muted-foreground hover:text-primary
-                         hover:bg-muted transition-colors"
+              className={iconButtonClass}
               aria-label="Search journal"
               title="Search (/)"
             >
@@ -142,9 +145,7 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setBugModalOpen(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-md
-                       text-muted-foreground hover:text-primary
-                       hover:bg-muted transition-colors"
+            className={iconButtonClass}
             aria-label="Report a bug"
           >
             <Bug className="w-4 h-4" aria-hidden="true" />
@@ -155,9 +156,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="w-8 h-8 flex items-center justify-center rounded-md
-                         text-muted-foreground hover:text-primary
-                         hover:bg-muted transition-colors"
+              className={iconButtonClass}
               aria-label="Toggle dark mode"
             >
               {theme === "dark"
@@ -177,8 +176,7 @@ export default function Navbar() {
                 aria-haspopup="true"
                 aria-expanded={dropdownOpen}
                 aria-label="Open profile menu"
-                className="flex items-center gap-2 text-sm text-muted-foreground
-                           hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
               >
                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="w-3.5 h-3.5 text-primary" aria-hidden="true" />

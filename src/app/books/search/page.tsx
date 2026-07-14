@@ -329,8 +329,7 @@ export default function BookSearchPage() {
             onKeyDown={handleKeyDown}
             placeholder="Search by title or author..."
             autoComplete="off"
-            className="w-full border border-border rounded-md pl-9 pr-4 py-2.5
-                       text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full border border-border rounded-md pl-9 pr-4 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         {/* FIX: aria-label on search button */}

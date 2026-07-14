@@ -111,3 +111,46 @@ export async function getHiddenEntryCount(
   `);
   return (result[0] as { count?: number })?.count ?? 0;
 }
+
+/**
+ * All PUBLIC entries by `ownerId` for `bookId`, each flagged `spoilered` against
+ * the VIEWER's own progress — same rule as the feed (see isSpoiler there):
+ * entries past the viewer's furthest chapter are spoilers, unless the viewer has
+ * finished the book (status READ). Unlike getPublicEntriesForViewer this HIDES
+ * nothing; the client blurs spoilered entries and reveals them on demand. Stored
+ * spoiler_tags ride along on each row for the reveal UI.
+ */
+export async function getPublicBookEntriesWithSpoilers(
+  ownerId: string,
+  bookId: string,
+  viewerId: string
+) {
+  assertUuid(bookId, "bookId");
+
+  const [progressRows, entries] = await Promise.all([
+    db.execute(sql`
+      SELECT status, furthest_chapter
+      FROM reading_progress
+      WHERE user_id = ${viewerId} AND book_id = ${bookId}
+      LIMIT 1
+    `),
+    db.execute(sql`
+      SELECT je.*
+      FROM journal_entries je
+      WHERE je.user_id = ${ownerId}
+        AND je.book_id = ${bookId}
+        AND je.is_public = true
+      ORDER BY je.chapter_end DESC
+    `),
+  ]);
+
+  const progress = progressRows[0] as { status?: string; furthest_chapter?: number } | undefined;
+  const viewerStatus = progress?.status ?? "TBR";
+  const viewerChapter = progress?.furthest_chapter ?? 0;
+
+  return entries.map((e) => {
+    const chapterEnd = (e as { chapter_end: number }).chapter_end;
+    const spoilered = viewerStatus === "READ" ? false : chapterEnd > viewerChapter;
+    return { ...e, spoilered };
+  });
+}
